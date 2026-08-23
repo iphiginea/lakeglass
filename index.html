@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f8f6">
+  <meta name="description" content="Lakeglass — a Lake Michigan beach glass field guide and personal specimen archive.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Lakeglass">
+  <title>Lakeglass — Lake Michigan Field Guide</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="lake-glass-mockup" class="lg-root">
+
+  <div class="frame">
+    <div class="phone" aria-live="polite">
+      <div class="status"><span>LAKEGLASS</span><span>LAKE MICHIGAN</span></div>
+
+      <section class="screen active" data-screen="home">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 15.25c2.25-1.55 4.5-1.55 6.75 0s4.5 1.55 6.75 0 4.5-1.55 4.5-1.55" stroke="#315f69" stroke-width="1.35" stroke-linecap="round"/><path d="M5.25 10.2c1.65-1.15 3.3-1.15 4.95 0s3.3 1.15 4.95 0 3.3-1.15 3.3-1.15" stroke="#7fb7bc" stroke-width="1.35" stroke-linecap="round"/></svg>
+          </div>
+          <div><div class="brand-wordmark"><strong>Lakeglass</strong></div><div class="brand-subtitle">Lake Michigan Field Guide</div></div>
+        </div>
+        <div class="hero-title-wrap"><h1>What did the<br>lake give you?</h1><span class="hero-glass-cluster" aria-hidden="true"><i></i><i></i><i></i></span></div>
+        <p class="lede">Identify weathered glass, understand the clues it carries, and preserve the known provenance of each find.</p>
+
+        <div class="hero-find">
+          <div><strong>Identify a find</strong><span>Color → form → markings → provenance</span></div>
+          <button class="primary" type="button" data-go="identify">Begin</button>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><b>42</b><span>Specimens</span></div>
+          <div class="metric"><b>11</b><span>Colors</span></div>
+          <div class="metric"><b>06</b><span>Beaches</span></div>
+        </div>
+
+        <div class="section-label">Recent accessions</div>
+        <div class="find-strip">
+          <div class="find-card"><div class="stone aqua"></div><b>Pale aqua</b><small>LM-042</small></div>
+          <div class="find-card"><div class="stone amber"></div><b>Amber</b><small>LM-041</small></div>
+          <div class="find-card"><div class="stone clear"></div><b>Clear / embossed</b><small>LM-040</small></div>
+        </div>
+
+        <div class="field-note"><b>Field note</b><p>Storms and shifting waves can expose fresh material along the waterline. Look where small stones collect; identification is based on observable clues, not color alone.</p></div>
+      </section>
+
+      <section class="screen" data-screen="identify">
+        <button class="back" type="button" data-go="home">← Index</button>
+        <div class="eyebrow">Field identification</div>
+        <div class="progress"><i style="width:100%"></i></div>
+        <div class="question">Tell us what the lake gave you.</div>
+        <p class="hint">A few quick observations build a Lake Michigan-specific reading.</p>
+
+        <div class="identify-group">
+          <div class="group-label">01 · Shoreline</div>
+          <div class="choice-list" data-group="region">
+            <button class="choice selected" type="button" data-value="chicago">Chicago area<small>landfill shoreline, fire debris, World's Fair sites</small></button>
+            <button class="choice" type="button" data-value="milwaukee">Milwaukee area<small>railroad-dump erosion, local glassworks</small></button>
+            <button class="choice" type="button" data-value="michigan">Michigan shoreline<small>shipping debris, wrecks, slag glass</small></button>
+            <button class="choice" type="button" data-value="unsure">Not sure<small>use general Lake Michigan sourcing</small></button>
+          </div>
+        </div>
+
+        <div class="identify-group">
+          <div class="group-label">02 · Color</div>
+          <div class="swatches" id="colorChoices" role="group" aria-label="Glass color"></div>
+        </div>
+
+        <div class="identify-group">
+          <div class="group-label">03 · Thickness</div>
+          <div class="choice-list" data-group="thickness">
+            <button class="choice selected" type="button" data-value="thin">Thin, like a bottle wall<small>about 2–4 mm</small></button>
+            <button class="choice" type="button" data-value="medium">Medium<small>jar base, plate edge, heavier packaging</small></button>
+            <button class="choice" type="button" data-value="thick">Thick or heavy chunk<small>bottle base, insulator, or slag candidate</small></button>
+          </div>
+        </div>
+
+        <div class="identify-group">
+          <div class="group-label">04 · Form</div>
+          <div class="choice-list two" data-group="form">
+            <button class="choice selected" type="button" data-value="curved">Curved wall<small>likely bottle or jar body</small></button>
+            <button class="choice" type="button" data-value="flat">Flat fragment<small>window, plate, or flat-sided vessel</small></button>
+            <button class="choice" type="button" data-value="rim">Rim or lip<small>high-value dating clue</small></button>
+            <button class="choice" type="button" data-value="base">Base or heel<small>may preserve maker details</small></button>
+            <button class="choice" type="button" data-value="neck">Neck<small>bottle-specific profile</small></button>
+            <button class="choice" type="button" data-value="unknown">Hard to tell<small>keep the reading cautious</small></button>
+          </div>
+        </div>
+
+        <div class="identify-group">
+          <div class="group-label">05 · Opacity</div>
+          <div class="choice-list two" data-group="opacity">
+            <button class="choice selected" type="button" data-value="transparent">Transparent<small>light passes clearly through</small></button>
+            <button class="choice" type="button" data-value="translucent">Translucent<small>light passes softly through</small></button>
+            <button class="choice" type="button" data-value="opaque">Opaque<small>little or no light passes</small></button>
+          </div>
+        </div>
+
+        <div class="identify-group">
+          <div class="group-label">06 · Surface or markings</div>
+          <div class="choice-list" data-group="mark">
+            <button class="choice selected" type="button" data-value="smooth">Smooth and frosted<small>even weathering, no sharp facets</small></button>
+            <button class="choice" type="button" data-value="letters">Raised letters or logo<small>often the strongest identification clue</small></button>
+            <button class="choice" type="button" data-value="ripple">Wavy or rippled<small>may point to old window or plate glass</small></button>
+            <button class="choice" type="button" data-value="rough">Still sharp or glossy<small>likely less time in the water</small></button>
+          </div>
+        </div>
+
+        <div class="identify-group" id="diagnosticGroup" hidden>
+          <div class="group-label">07 · Diagnostic clue</div>
+          <div class="diagnostic-panel">
+            <div class="diagnostic-question" id="diagnosticQuestion">One more clue can strengthen this reading.</div>
+            <p class="diagnostic-help" id="diagnosticHelp">Choose the closest physical feature you can see.</p>
+            <div class="choice-list" id="diagnosticChoices"></div>
+          </div>
+        </div>
+
+        <div class="identify-group">
+          <div class="group-label">08 · Known provenance</div>
+          <div class="field-pair">
+            <input class="text-field" id="foundAt" type="text" placeholder="Beach or shoreline" aria-label="Beach or shoreline">
+            <input class="text-field" id="foundDate" type="date" aria-label="Date found">
+          </div>
+          <input class="text-field" id="collectorNote" type="text" placeholder="Optional note — e.g. after a storm" aria-label="Optional collector note" style="margin-top:9px">
+          <p class="microcopy">These are recorded as known provenance. The app keeps them separate from inferred history.</p>
+        </div>
+
+        <div class="next-row"><button class="primary" type="button" id="analyzeBtn">Analyze specimen →</button></div>
+      </section>
+
+      <section class="screen" data-screen="result">
+        <button class="back" type="button" data-go="identify">← Identification</button>
+        <div class="eyebrow">Field reading</div>
+        <div class="result-hero">
+          <div class="result-stone" id="resultStone" aria-label="Illustrated beach glass specimen"></div>
+          <div>
+            <div class="specno" id="resultSpecNo">Lake Michigan specimen</div>
+            <h2 id="resultName">Light Blue / Aqua</h2>
+            <div class="date-range" id="resultRegion">Chicago · Lake Michigan</div>
+            <div class="rarity10"><span>Occurrence</span><div class="track"><div class="fill" id="rarityFill" style="width:20%"></div></div><span id="rarityValue">2 / 10</span></div>
+          </div>
+        </div>
+
+        <p class="result-summary" id="resultSummary">Likely an <em>aqua utility-bottle fragment</em>, softened by prolonged Lake Michigan tumbling.</p>
+
+        <div class="pill-row">
+          <span class="pill" id="rarityPill">Uncommon color</span>
+          <span class="pill" id="shorePill">Chicago shoreline</span>
+          <span class="pill" id="wearPill">Long-tumbled</span>
+          <span class="pill" id="strengthPill">Strong match</span>
+        </div>
+
+        <div class="result-grid">
+          <div class="data-cell"><small>Probable source</small><b id="originText">Bottle glass</b></div>
+          <div class="data-cell"><small>Material clue</small><b id="thicknessText">Bottle-wall glass</b></div>
+          <div class="data-cell"><small>Form clue</small><b id="formText">Curved wall</b></div>
+          <div class="data-cell"><small>Opacity</small><b id="opacityText">Transparent</b></div>
+          <div class="data-cell"><small>Wear & weathering</small><b id="markText">Long-tumbled surface</b></div>
+          <div class="data-cell"><small>Diagnostic clue</small><b id="diagnosticText">No diagnostic feature recorded</b></div>
+          <div class="data-cell"><small>Historical period</small><b id="periodText">Not enough evidence</b></div>
+          <div class="data-cell"><small>Local note</small><b id="regionalClue">Chicago shoreline context</b></div>
+        </div>
+
+        <div class="intel-section">
+          <div class="intel-title"><span>Specimen ratings</span></div>
+          <div class="rating-row"><span class="rating-label">Color occurrence</span><span class="rating-track"><i id="colorRating" style="width:20%"></i></span><span class="rating-value" id="colorRatingValue">2 / 10</span></div>
+          <div class="rating-row"><span class="rating-label">Form rarity</span><span class="rating-track"><i id="formRating" style="width:30%"></i></span><span class="rating-value" id="formRatingValue">3 / 10</span></div>
+          <div class="rating-row"><span class="rating-label">Historical interest</span><span class="rating-track"><i id="historyRating" style="width:40%"></i></span><span class="rating-value" id="historyRatingValue">4 / 10</span></div>
+        </div>
+
+        <div class="intel-section">
+          <div class="intel-title"><span>Known provenance</span><span>Recorded by you</span></div>
+          <div class="provenance-grid">
+            <div class="provenance-card"><small>Found at</small><b id="knownPlace">Not recorded</b></div>
+            <div class="provenance-card"><small>Found on</small><b id="knownDate">Not recorded</b></div>
+          </div>
+          <div class="confidence-note" id="knownNote">No collector note recorded.</div>
+        </div>
+
+        <div class="intel-section">
+          <div class="intel-title"><span>Why we think this</span><span>Field reading</span></div>
+          <p class="evidence-copy" id="colorNote">Aqua is the natural tint of many older utility glasses and is a familiar Lake Michigan find.</p>
+          <div class="source-tags" id="sourceTags"></div>
+        </div>
+
+        <div class="uncertain-note" id="uncertainNote" hidden>
+          <b>Unresolved specimen</b>
+          <p id="uncertainText">The evidence is split. One more physical clue could change this reading.</p>
+        </div>
+
+        <details class="deep-note" open>
+          <summary>Local shoreline context</summary>
+          <div class="deep-note-body"><p id="regionSpecificText">Local context can strengthen or weaken a color-based hypothesis.</p></div>
+        </details>
+
+        <details class="deep-note">
+          <summary>Historical context</summary>
+          <div class="deep-note-body"><p id="regionalHistory">Lake Michigan shoreline history provides context, not certainty.</p></div>
+        </details>
+
+        <details class="deep-note">
+          <summary>Research basis</summary>
+          <div class="deep-note-body"><p id="researchBasis">Lakeglass uses multiple regional and beach-glass references for this reading.</p></div>
+        </details>
+
+        <details class="deep-note">
+          <summary>How this rating works</summary>
+          <div class="deep-note-body"><p id="interpretationText">This reading combines color, thickness, surface condition, and shoreline context. It is historically informed rather than lab-grade dating.</p></div>
+        </details>
+        <div class="next-row"><button class="primary" type="button" id="saveSpecimenBtn">Save to collection →</button></div>
+      </section>
+
+      <section class="screen" data-screen="collection">
+        <button class="back" type="button" data-go="home">← Index</button>
+        <div class="collection-head"><div><div class="eyebrow">Personal archive</div><h2>Collection</h2></div><div class="sort" id="collectionCount">42 specimens</div></div>
+        <div class="archive-tools">
+          <button class="secondary" type="button" id="exportCollectionBtn">Export archive</button>
+          <button class="secondary" type="button" id="importCollectionBtn">Import archive</button>
+          <input id="importCollectionFile" type="file" accept="application/json,.json" hidden>
+        </div>
+        <div class="collection-grid" id="collectionGrid"></div>
+      </section>
+
+      <section class="screen" data-screen="detail">
+        <button class="back" type="button" data-go="collection">← Collection</button>
+        <div class="eyebrow">Accession record</div>
+        <div class="detail-hero">
+          <div class="specno" id="detailId">LM-042</div>
+          <h2 id="detailName">Pale aqua</h2>
+          <p class="result-summary" id="detailSummary" style="padding:10px 0 0;margin:0">A saved Lake Michigan specimen with known find context and an inferred historical reading.</p>
+          <div class="detail-meta">
+            <div><small>Known provenance</small><b id="detailProvenance">Loyola Beach · Chicago</b></div>
+            <div><small>Estimated period</small><b id="detailPeriod">ca. 1880–1930</b></div>
+            <div><small>Color occurrence</small><b id="detailRarity">2 / 10</b></div>
+            <div><small>Probable source</small><b id="detailSource">Container glass</b></div>
+          </div>
+        </div>
+        <details class="deep-note" open><summary>Identification notes</summary><div class="deep-note-body"><p id="detailNotes">Color, form, opacity, thickness, and surface clues are preserved with the accession.</p></div></details>
+        <div class="archive-tools" style="margin-top:14px">
+          <button class="secondary" type="button" id="editSpecimenBtn">Edit record</button>
+          <button class="danger" type="button" id="deleteSpecimenBtn">Delete record</button>
+        </div>
+        <div class="edit-sheet" id="editSheet">
+          <div class="group-label">Edit accession record</div>
+          <input class="text-field" id="editName" type="text" placeholder="Specimen name" aria-label="Specimen name">
+          <input class="text-field" id="editProvenance" type="text" placeholder="Known provenance" aria-label="Known provenance">
+          <input class="text-field" id="editPeriod" type="text" placeholder="Estimated period" aria-label="Estimated period">
+          <input class="text-field" id="editSource" type="text" placeholder="Probable source" aria-label="Probable source">
+          <input class="text-field" id="editRarity" type="text" placehlder="Occurrence rating" aria-label="Occurrence rating">
+          <input class="text-field" id="editNotes" type="text" placehlder="Identification notes" aria-label="Identification notes">
+          <div class="edit-actions"><button class="secondary" type="button" id="cancelEditBtn">Cancel</button><button class="primary" type="button" id="saveEditBtn">Save changes</button></div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="guide">
+        <button class="back" type="button" data-go="home">← Index</button>
+        <div class="eyebrow">Field guide</div>
+        <h2 style="margin-top:8px">Clues worth noticing</h2>
+        <p class="lede">Use these when a specimen lands between two possible readings.</p>
+        <div class="guide-grid" style="margin-top:18px">
+          <div class="guide-card"><b>Bottle lips</b><p>Finish style and seam position can narrow manufacturing period.</p></div>
+          <div class="guide-card"><b>Pontil scars</b><p>A rough or polished base scar can signal older hand-finished production.</p></div>
+          <div class="guide-card"><b>Embossing</b><p>Letters, numbers, and logos can point to a maker or regional bottler.</p></div>
+          <div class="guide-card"><b>Bubbles</b><p>Irregular bubbles can support an older-manufacture hypothesis, but are not proof alone.</p></div>
+          <div class="guide-card"><b>Opacity</b><p>Opaque white may indicate milk glass rather than frosted clear glass.</p></div>
+          <div class="guide-card"><b>Near-black glass</b><p>Hold it to strong light; deep olive or amber can look black at thickness.</p></div>
+          <div class="guide-card"><b>After storms</b><p>Spring, fall, and strong wave events can reshape the shoreline and expose new glass.</p></div>
+          <div class="guide-card"><b>Pebble lines</b><p>Search where small stones gather near the waterline; glass often settles with material of similar size.</p></div>
+          <div class="guide-card"><b>Color in daylight</b><p>Thickness, lighting, weathering, and glass chemistry can all shift how a color appears.</p></div>
+          <div class="guide-card"><b>Glassy rock?</b><p>Leland Blue and similar material are industrial smelting slag, not ordinary bottle glass.</p></div>
+        </div>
+        <details class="deep-note" open><summary>Lake Michigan occurrence</summary><div class="deep-note-body"><p>1–2 common · 3–4 familiar · 5–6 uncommon · 7–8 rare · 9 very rare · 10 exceptional. The scale is a comparative Lakeglass field index and can be revised as better regional evidence becomes available.</p></div></details>
+      </section>
+
+      <section class="screen" data-screen="methodology">
+        <button class="back" type="button" data-go="home">← Index</button>
+        <div class="eyebrow">About the index</div>
+        <h2 style="margin-top:8px">How Lakeglass reads a find</h2>
+        <p class="lede">A field identification is an interpretation of physical clues, not a laboratory attribution.</p>
+        <details class="deep-note" open><summary>Identification</summary><div class="deep-note-body"><p>Lakeglass compares color, opacity, thickness, form, surface wear, markings, and shoreline context. When a diagnostic feature such as a rim, base, embossing, near-black color, milk glass, or slag candidate is reported, the guide asks one additional targeted question because those clues can carry more historical weight than color alone.</p></div></details>
+        <details class="deep-note"><summary>Identification strength</summary><div class="deep-note-body"><p>Possible · Good match · Strong match ÷ Distinctive match. These labels describe how well the observed clues agree; they are not statistical probabilities.</p></div></details>
+        <details class="deep-note"><summary>Occurrence index</summary><div class="deep-note-body"><p>The 1–10 score is a comparative Lakeglass field index for how often a color is encountered around Lake Michigan. It is not a measured population frequency and can change as better regional evidence becomes available.</p></div></details>
+        <details class="deep-note"><summary>Provenance</summary><div class="deep-note-body"><p>Where and when you found a specimen are recorded as known provenance. Probable source, age, and historical origin remain inferred interpretations and may change when better evidence appears.</p></div></details>
+        <details class="deep-note"><summary>Limits</summary><div class="deep-note-body"><p>A fragment usually cannot be dated or assigned to a specific manufacturer from color alone. Embossing, bottle finishes, bases, mold seams, and other diagnostic features can substantially strengthen a reading.</p></div></details>
+        <details class="deep-note"><summary>Research sources</summary><div class="deep-note-body"><p>Lakeglass cross-checks its field notes against Beachcombing Magazine, Rock &amp; Gem, Schlitz Audubon Nature Center, Visit Southwest Michigan, Michigan Beachtowns, and regional Michigan reporting. Regional observations are used as context rather than treated as universal rules, and source-backed information is rewritten into concise field-guide language.</p></div></details>
+      </section>
+
+      <section class="screen" data-screen="appstatus">
+        <button class="back" type="button" data-go="home">← Index</button>
+        <div class="eyebrow">App readiness</div>
+        <h2 style="margin-top:8px">Built for the shoreline</h2>
+        <p class="lede">Lakeglass is structured so the field guide, identification logic, and collection can live on-device without an account.</p>
+        <div class="app-status">
+          <div class="status-card"><strong>On-device collection</strong><p>Saved accession records are persisted locally in the browser using IndexedDB, so they can survive normal page reloads on the same device.</p><span class="status-badge"><span class="status-dot"></span>Local archive enabled</span></div>
+          <div class="status-card"><strong>Offline field guide</strong><p>The identification data and research notes are already bundled into the app. A production deployment only needs a service worker and cache manifest to make those screens available without a connection.</p><span class="status-badge"><span class="status-dot"></span>Ready for caching</span></div>
+          <div class="status-card"><strong>Home-screen install</strong><p>The Lakeglass production package is ready to be split into a web-app manifest, service worker, app icons, and this interface for a real home-screen install.</p><span class="status-badge"><span class="status-dot"></span>Ready to package</span></div>
+          <div class="status-card"><strong>No account required</strong><p>No camera identification, photo uploads, or cloud profile are needed for version 1. Export and import remain the backup path for moving a collection between devices.</p></div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="side">
+      <div class="side-kicker">Concept 01 · Archival field guide</div>
+      <h2>A museum label in your pocket.</h2>
+      <p class="side-copy">The interface treats each shard like a recovered specimen rather than a beach souvenir: restrained typography, accession numbers, research-style metadata, and color coming almost entirely from the glass itself.</p>
+
+      <div class="nav" aria-label="Mockup screens">
+        <button class="active" type="button" data-go="home"><span class="num">01</span><span class="label">Index</span><span class="arrow">→</span></button>
+        <button type="button" data-go="identify"><span class="num">02</span><span class="label">Identify</span><span class="arrow">→</span></button>
+        <button type="button" data-go="result"><span class="num">03</span><span class="label">Result</span><span class="arrow">→</span></button>
+        <button type="button" data-go="collection"><span class="num">04</span><span class="label">Archive</span><span class="arrow">→</span></button>
+        <button type="button" data-go="guide"><span class="num">05</span><span class="label">Field guide</span><span class="arrow">→</span></button>
+        <button type="button" data-go="methodology"><span class="num">06</span><span class="label">Method</span><span class="arrow">→</span></button>
+        <button type="button" data-go="appstatus"><span class="num">07</span><span class="label">App status</span><span class="arrow">→</span></button>
+      </div>
+
+      <div class="design-note"><b>Visual language</b><p>Lake-glass translucency · cool freshwater blue ³ warm sand accents · refined serif display type · quiet monospaced specimen metadata.</p></div>
+    </aside>
+  </div>
+</div>
+  <script src="app.js" defer></script>
+</body>
+</html>
