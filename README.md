@@ -16,6 +16,7 @@ The result is an evidence-based reading that keeps known provenance separate fro
 - Lake Michigan color occurrence and regional context
 - Source-backed research behind each reading
 - Local specimen archive using IndexedDB
+- Home archive metrics and recent accessions based only on specimens actually saved by the user
 - Known find location/date stored separately from inferred origin and age
 - Collection import and export
 - Installable Progressive Web App
@@ -24,6 +25,8 @@ The result is an evidence-based reading that keeps known provenance separate fro
 ## Privacy
 
 Lakeglass has no accounts, no server-side collection database, no camera identification, and no photo storage. Specimen records stay in the local browser unless the user explicitly exports them.
+
+The personal archive starts empty. Lakeglass does not seed demo specimens into a user's collection.
 
 ## Stack
 
