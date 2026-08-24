@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lakeglass-v10';
+const CACHE_NAME = 'lakeglass-v11';
 const APP_SHELL = [
   './',
   './index.html',
@@ -29,15 +29,18 @@ self.addEventListener('activate', event => {
 
 async function enhanceAppDocument(response){
   if(!response) return response;
-  const text=await response.text();
-  if(text.includes('src="./dating.js"')||text.includes('src="dating.js"')){
-    return new Response(text,{status:response.status,statusText:response.statusText,headers:response.headers});
+  let text=await response.text();
+  text=text
+    .replace('<div class="rarity10"><span>Occurrence</span>','<div class="rarity10"><span>Color rarity</span>')
+    .replaceAll('Color occurrence','Color rarity')
+    .replaceAll('Form rarity','Form distinctiveness');
+  if(!text.includes('src="./dating.js"')&&!text.includes('src="dating.js"')){
+    text=text.replace('</body>','  <script src="./dating.js" defer></script>\n</body>');
   }
   const headers=new Headers(response.headers);
   headers.delete('content-length');
   headers.delete('content-encoding');
-  const enhanced=text.replace('</body>','  <script src="./dating.js" defer></script>\n</body>');
-  return new Response(enhanced,{status:response.status,statusText:response.statusText,headers});
+  return new Response(text,{status:response.status,statusText:response.statusText,headers});
 }
 
 self.addEventListener('fetch', event => {
