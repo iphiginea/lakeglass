@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lakeglass-v9';
+const CACHE_NAME = 'lakeglass-v10';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './base.css',
   './app.js',
   './data.js',
+  './dating.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -26,24 +27,39 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+async function enhanceAppDocument(response){
+  if(!response) return response;
+  const text=await response.text();
+  if(text.includes('src="./dating.js"')||text.includes('src="dating.js"')){
+    return new Response(text,{status:response.status,statusText:response.statusText,headers:response.headers});
+  }
+  const headers=new Headers(response.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  const enhanced=text.replace('</body>','  <script src="./dating.js" defer></script>\n</body>');
+  return new Response(enhanced,{status:response.status,statusText:response.statusText,headers});
+}
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  const isAppDocument=event.request.mode==='navigate' && (url.pathname.endsWith('/lakeglass/')||url.pathname.endsWith('/lakeglass/index.html'));
+
   event.respondWith(
-    fetch(event.request).then(response => {
+    fetch(event.request).then(async response => {
       if (response && response.ok) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
       }
-      return response;
+      return isAppDocument?enhanceAppDocument(response):response;
     }).catch(async () => {
       const cached = await caches.match(event.request);
-      if (cached) return cached;
+      if (cached) return isAppDocument?enhanceAppDocument(cached):cached;
       if (event.request.mode === 'navigate') {
         const shell = await caches.match('./index.html');
-        if (shell) return shell;
+        if (shell) return isAppDocument?enhanceAppDocument(shell):shell;
       }
       throw new Error('Offline resource unavailable');
     })
