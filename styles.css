@@ -1,5 +1,10 @@
 @import url('./base.css');
 
+#lake-glass-mockup [data-screen="appstatus"],
+#lake-glass-mockup .nav button[data-go="appstatus"]{
+  display:none !important;
+}
+
 @media (max-width:760px){
   html,body{background:#fffdf8;}
   #lake-glass-mockup{padding:0;background:#fffdf8;}
