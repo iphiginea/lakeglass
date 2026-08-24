@@ -101,6 +101,7 @@
   };
   const LEGACY_DEMO_IDS=new Set(['LM-042','LM-041','LM-040','LM-039']);
   const savedSpecimens=[];
+  const accessionCounters={};
   const ARCHIVE_DB='lakeglass-archive';
   const ARCHIVE_STORE='collection';
   let currentSpecimenCode='';
@@ -132,8 +133,16 @@
     return Number.isInteger(n)&&n>0?n:null;
   }
 
+  function mergeCountersFromSpecimens(){
+    savedSpecimens.forEach(d=>{
+      const colorId=inferColorId(d);
+      const n=Number(d.accessionNumber)||accessionNumberFromId(d.id,colorId)||0;
+      if(n>0) accessionCounters[colorId]=Math.max(Number(accessionCounters[colorId])||0,n);
+    });
+  }
+
   function nextAccession(colorId){
-    let max=0;
+    let max=Number(accessionCounters[colorId])||0;
     savedSpecimens.forEach(d=>{
       const dColor=inferColorId(d);
       if(dColor!==colorId) return;
@@ -391,7 +400,9 @@
       if(!db) return;
       await new Promise((resolve,reject)=>{
         const tx=db.transaction(ARCHIVE_STORE,'readwrite');
-        tx.objectStore(ARCHIVE_STORE).put(savedSpecimens,'specimens');
+        const store=tx.objectStore(ARCHIVE_STORE);
+        store.put(savedSpecimens,'specimens');
+        store.put({...accessionCounters},'accessionCounters');
         tx.oncomplete=()=>resolve();
         tx.onerror=()=>reject(tx.error);
       });
@@ -403,20 +414,29 @@
     try{
       const db=await openArchiveDb();
       if(!db) return;
-      const rows=await new Promise((resolve,reject)=>{
+      const restored=await new Promise((resolve,reject)=>{
         const tx=db.transaction(ARCHIVE_STORE,'readonly');
-        const req=tx.objectStore(ARCHIVE_STORE).get('specimens');
-        req.onsuccess=()=>resolve(req.result);
-        req.onerror=()=>reject(req.error);
+        const store=tx.objectStore(ARCHIVE_STORE);
+        const specimensReq=store.get('specimens');
+        const countersReq=store.get('accessionCounters');
+        tx.oncomplete=()=>resolve({rows:specimensReq.result,counters:countersReq.result});
+        tx.onerror=()=>reject(tx.error);
       });
       db.close();
 
-      if(Array.isArray(rows)){
-        const normalized=normalizeAccessionRows(rows);
-        const changed=JSON.stringify(normalized)!==JSON.stringify(rows);
+      if(Array.isArray(restored.rows)){
+        const normalized=normalizeAccessionRows(restored.rows);
         savedSpecimens.splice(0,savedSpecimens.length,...normalized);
-        if(changed) await persistSavedSpecimens();
       }
+      Object.keys(accessionCounters).forEach(key=>delete accessionCounters[key]);
+      if(restored.counters&&typeof restored.counters==='object'){
+        Object.entries(restored.counters).forEach(([key,value])=>{
+          const n=Number(value);
+          if(Number.isInteger(n)&&n>0) accessionCounters[key]=n;
+        });
+      }
+      mergeCountersFromSpecimens();
+      await persistSavedSpecimens();
       renderCollection();
     }catch(err){
       renderCollection();
@@ -628,7 +648,7 @@
   });
 
   root.querySelector('#exportCollectionBtn').addEventListener('click',()=>{
-    const payload={app:'Lakeglass',version:3,accessionSystem:'per-color',exportedAt:new Date().toISOString(),specimens:savedSpecimens};
+    const payload={app:'Lakeglass',version:4,accessionSystem:'per-color',accessionCounters:{...accessionCounters},exportedAt:new Date().toISOString(),specimens:savedSpecimens};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
@@ -666,6 +686,14 @@
         }));
         const normalized=normalizeAccessionRows(raw);
         savedSpecimens.splice(0,savedSpecimens.length,...normalized);
+        Object.keys(accessionCounters).forEach(key=>delete accessionCounters[key]);
+        if(parsed&&parsed.accessionCounters&&typeof parsed.accessionCounters==='object'){
+          Object.entries(parsed.accessionCounters).forEach(([key,value])=>{
+            const n=Number(value);
+            if(Number.isInteger(n)&&n>0) accessionCounters[key]=n;
+          });
+        }
+        mergeCountersFromSpecimens();
         persistSavedSpecimens();
         renderCollection();
         show('collection');
@@ -692,6 +720,7 @@
     ].filter(Boolean).join(' ');
     const accession=nextAccession(color.id);
     currentSpecimenCode=accession.id;
+    accessionCounters[color.id]=accession.number;
 
     savedSpecimens.unshift({
       key:`saved-${Date.now()}`,
