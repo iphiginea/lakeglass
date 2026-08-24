@@ -5,6 +5,50 @@
   display:none !important;
 }
 
+#lake-glass-mockup .find-card.empty-accession{
+  grid-column:1 / -1;
+  min-height:132px;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  border-style:dashed;
+  background:linear-gradient(145deg,rgba(250,253,251,.96),rgba(240,247,245,.9));
+}
+
+#lake-glass-mockup .find-card.empty-accession .stone{
+  width:38px;
+  height:42px;
+  margin-bottom:12px;
+  opacity:.72;
+}
+
+#lake-glass-mockup .collection-empty{
+  grid-column:1 / -1;
+  border:1px dashed #ccd9d6;
+  border-radius:20px;
+  padding:28px 22px;
+  background:linear-gradient(145deg,rgba(250,253,251,.96),rgba(240,247,245,.9));
+  text-align:center;
+}
+
+#lake-glass-mockup .collection-empty b{
+  display:block;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  font-size:22px;
+  font-weight:500;
+  color:#29454c;
+}
+
+#lake-glass-mockup .collection-empty p{
+  max-width:32ch;
+  margin:8px auto 0;
+  color:#718084;
+  font-size:12px;
+  line-height:1.55;
+}
+
 @media (max-width:760px){
   html,body{background:#fffdf8;}
   #lake-glass-mockup{padding:0;background:#fffdf8;}
@@ -52,4 +96,7 @@
   #lake-glass-mockup .detail-meta b{font-size:14px;}
   #lake-glass-mockup .status-card strong{font-size:14px;}
   #lake-glass-mockup .status-card p{font-size:13px;}
+  #lake-glass-mockup .collection-empty{padding:32px 22px;}
+  #lake-glass-mockup .collection-empty b{font-size:24px;}
+  #lake-glass-mockup .collection-empty p{font-size:13px;}
 }
