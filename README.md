@@ -16,11 +16,20 @@ The result is an evidence-based reading that keeps known provenance separate fro
 - Lake Michigan color occurrence and regional context
 - Source-backed research behind each reading
 - Local specimen archive using IndexedDB
+- Permanent per-color accession sequences, such as `LM.CLEAR.005` and `LM.GREEN.001`
+- Issued accession numbers are not reused after a specimen is deleted
 - Home archive metrics and recent accessions based only on specimens actually saved by the user
+- Full collection access from the home screen
 - Known find location/date stored separately from inferred origin and age
-- Collection import and export
+- Collection import and export, including accession counters
 - Installable Progressive Web App
 - Offline support through a service worker
+
+## Accession numbers
+
+Each Lakeglass color family has its own sequence. For example, five clear/white specimens would be `LM.CLEAR.001` through `LM.CLEAR.005`. The first green specimen would still be `LM.GREEN.001`, regardless of how many specimens of other colors are already in the archive.
+
+The accession identifier is assigned when the specimen enters the collection and remains permanent even if descriptive fields are edited later.
 
 ## Privacy
 
