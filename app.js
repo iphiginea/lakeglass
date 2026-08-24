@@ -359,7 +359,7 @@
     if(!home) return;
 
     const metricValues=[...home.querySelectorAll('.metrics .metric b')];
-    const uniqueColors=new Set(savedSpecimens.map(d=>String(d.key||d.name||'').trim()).filter(Boolean));
+    const uniqueColors=new Set(savedSpecimens.map(d=>String(d.color||d.name||'').trim().toLowerCase()).filter(Boolean));
     const uniqueBeaches=new Set(savedSpecimens.map(specimenBeach).filter(Boolean));
     if(metricValues[0]) metricValues[0].textContent=String(savedSpecimens.length).padStart(2,'0');
     if(metricValues[1]) metricValues[1].textContent=String(uniqueColors.size).padStart(2,'0');
