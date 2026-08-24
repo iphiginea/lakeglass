@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lakeglass-v5';
+const CACHE_NAME = 'lakeglass-v6';
 const APP_SHELL = [
   './',
   './index.html',
