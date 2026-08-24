@@ -5,6 +5,48 @@
   display:none !important;
 }
 
+#lake-glass-mockup .metric-link{
+  cursor:pointer;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;
+}
+
+#lake-glass-mockup .metric-link:focus-visible{
+  outline:2px solid #7fb7bc;
+  outline-offset:3px;
+}
+
+@media (hover:hover) and (pointer:fine){
+  #lake-glass-mockup .metric-link:hover{
+    transform:translateY(-2px);
+    border-color:#bfd6d2;
+    box-shadow:0 10px 22px rgba(75,105,108,.08);
+  }
+}
+
+#lake-glass-mockup .home-archive-heading{
+  margin:19px 0 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+}
+
+#lake-glass-mockup .home-archive-heading .section-label{
+  margin:0;
+}
+
+#lake-glass-mockup .view-collection-btn{
+  min-height:auto;
+  padding:4px 0;
+  background:transparent;
+  color:#315f69;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+
 #lake-glass-mockup .find-card.empty-accession{
   grid-column:1 / -1;
   min-height:132px;
@@ -22,6 +64,35 @@
   height:42px;
   margin-bottom:12px;
   opacity:.72;
+}
+
+#lake-glass-mockup .accession-help{
+  margin:14px 0;
+  padding:14px 15px;
+  border:1px solid #d8e5e2;
+  border-radius:16px;
+  background:linear-gradient(145deg,#f4faf8,#edf6f4);
+}
+
+#lake-glass-mockup .accession-help b{
+  display:block;
+  font:700 9px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:#315f69;
+}
+
+#lake-glass-mockup .accession-help p{
+  margin-top:7px;
+  color:#677a7e;
+  font-size:11px;
+  line-height:1.55;
+}
+
+#lake-glass-mockup .accession-help strong{
+  color:#315f69;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-weight:700;
 }
 
 #lake-glass-mockup .collection-empty{
@@ -71,6 +142,8 @@
   #lake-glass-mockup .metric{padding:17px 14px;}
   #lake-glass-mockup .metric b{font-size:34px;}
   #lake-glass-mockup .metric span{font-size:10px;}
+  #lake-glass-mockup .home-archive-heading{margin-top:22px;}
+  #lake-glass-mockup .view-collection-btn{min-height:auto;font-size:10px;}
   #lake-glass-mockup .find-card b{font-size:10px;}
   #lake-glass-mockup .find-card small{font-size:11px;}
   #lake-glass-mockup .field-note p{font-size:13px;}
@@ -96,6 +169,7 @@
   #lake-glass-mockup .detail-meta b{font-size:14px;}
   #lake-glass-mockup .status-card strong{font-size:14px;}
   #lake-glass-mockup .status-card p{font-size:13px;}
+  #lake-glass-mockup .accession-help p{font-size:12px;}
   #lake-glass-mockup .collection-empty{padding:32px 22px;}
   #lake-glass-mockup .collection-empty b{font-size:24px;}
   #lake-glass-mockup .collection-empty p{font-size:13px;}
