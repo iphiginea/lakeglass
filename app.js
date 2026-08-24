@@ -25,6 +25,9 @@
 
   root.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>show(btn.dataset.go)));
 
+  const flatChoice=root.querySelector('[data-group="form"] [data-value="flat"]');
+  if(flatChoice) flatChoice.innerHTML='Small flat fragment<small>curvature may be lost; source unresolved</small>';
+
   const colorChoices=root.querySelector('#colorChoices');
   GLASS_COLORS.forEach(c=>{
     const btn=document.createElement('button');
@@ -202,7 +205,7 @@
   }
 
   function shortThickness(value){
-    return value==='thin'?'Thin bottle-wall glass':value==='medium'?'Medium-weight glass':'Thick / heavy glass';
+    return value==='thin'?'Thin glass fragment':value==='medium'?'Medium-weight glass':'Thick / heavy glass';
   }
 
   function shortMark(value){
@@ -213,18 +216,19 @@
   }
 
   function shortForm(value){
-    return ({curved:'Curved vessel wall',flat:'Flat fragment',rim:'Rim / lip fragment',base:'Base / heel fragment',neck:'Bottle neck',unknown:'Form uncertain'})[value]||'Form uncertain';
+    return ({curved:'Curved vessel wall',flat:'Small flat fragment',rim:'Rim / lip fragment',base:'Base / heel fragment',neck:'Bottle neck',unknown:'Form uncertain'})[value]||'Form uncertain';
   }
 
   function formScore(value){
-    return ({curved:2,flat:3,rim:7,base:6,neck:6,unknown:1})[value]||1;
+    return ({curved:2,flat:1,rim:7,base:6,neck:6,unknown:1})[value]||1;
   }
 
   function historyScore(){
     let score=3;
     if(state.mark==='letters') score+=4;
     if(state.form==='rim'||state.form==='base'||state.form==='neck') score+=2;
-    if(state.color==='lavender'||state.color==='red'||state.color==='slag'||state.color==='black') score+=1;
+    if(state.color==='lavender') score+=3;
+    else if(state.color==='red'||state.color==='slag'||state.color==='black') score+=1;
     return Math.min(10,score);
   }
 
@@ -235,27 +239,27 @@
     const add=(type,points,reason)=>{scores[type]+=points;if(reason)evidence.push(reason);};
 
     if(state.form==='curved'){add('bottle',4,'Curved vessel wall strongly supports container glass.');add('jar',1);}
-    if(state.form==='flat'){add('flat',4,'Flat form favors window, plate, or other flat glass.');}
+    if(state.form==='flat') evidence.push('Flatness is weak evidence on a small shoreline shard because tumbling and breakage can erase the original curvature.');
     if(state.form==='rim'){add('bottle',5,'A rim or lip is a diagnostic vessel feature.');add('jar',2);}
     if(state.form==='base'){add('bottle',3,'A base or heel supports a vessel identification.');add('jar',3);}
     if(state.form==='neck'){add('bottle',5,'A neck profile strongly supports a bottle.');}
 
     if(state.mark==='letters'){add('bottle',3,'Embossing is a high-value manufacturing clue.');add('jar',2);}
-    if(state.mark==='ripple'){add('flat',5,'A rippled surface strongly favors older flat glass.');}
+    if(state.mark==='ripple'){add('flat',5,'A deliberately rippled or wavy surface is meaningful evidence for older flat glass.');}
     if(state.mark==='smooth') evidence.push('Even frosting supports prolonged shoreline weathering.');
     if(state.mark==='rough') evidence.push('Remaining gloss or sharpness suggests lighter shoreline weathering.');
 
-    if(state.thickness==='thin'){add('bottle',2,'Thin glass is consistent with bottle-wall construction.');add('flat',1);}
+    if(state.thickness==='thin'){add('bottle',1,'Thin glass is compatible with bottle-wall glass, but thickness alone is not diagnostic.');}
     if(state.thickness==='medium'){add('jar',2,'Medium thickness fits heavier containers or tableware.');add('bottle',1);}
     if(state.thickness==='thick'){add('slag',2,'Heavy thickness raises industrial-slag potential.');add('insulator',2,'Heavy thickness can fit utility or insulator glass.');add('bottle',1);}
 
-    if(state.opacity==='transparent'){add('bottle',1);add('flat',1);}
     if(state.opacity==='opaque'&&color.id==='milkglass'){add('jar',5,'Opaque white strongly supports milk glass.');add('decorative',2);}
     if(state.opacity==='opaque'&&color.id==='slag'){add('slag',4,'Opaque or near-opaque material supports an industrial-slag reading.');}
 
     if(['white','brown','aqua','seafoam','green','olive','lime','darkaqua','teal'].includes(color.id)) add('bottle',2,'The selected color is compatible with historic utility-container glass.');
     if(color.id==='cobalt'){add('bottle',2,'Cobalt is compatible with medicine and specialty bottles.');add('decorative',2);}
-    if(['lavender','pink','purple','gray','yellow','opalescent','canary','red','orange'].includes(color.id)) add('decorative',3,'The color raises the likelihood of decorative or specialty glass.');
+    if(['pink','purple','gray','yellow','opalescent','canary','red','orange'].includes(color.id)) add('decorative',3,'The color raises the likelihood of decorative or specialty glass.');
+    if(color.id==='lavender') evidence.push('Lavender or amethyst color can be a chronological clue when it reflects solarized manganese-decolorized colorless glass.');
     if(color.id==='teal'){add('jar',2,'Teal was also used for utilitarian jars and containers.');add('insulator',1,'Teal appears in historic electrical insulators as well as vessels.');}
     if(color.id==='darkaqua'){add('insulator',2,'Dark aqua can appear in historic electrical insulators.');add('decorative',1);}
     if(color.id==='milkglass'){add('jar',3,'Milk glass commonly appears in cosmetic, ointment, and household containers.');}
@@ -278,7 +282,7 @@
     if(color.id==='slag'&&state.form==='curved'&&state.thickness==='thin') cautions.push('Thin curved vessel glass conflicts with an industrial-slag identification.');
     if(color.id==='milkglass'&&state.opacity!=='opaque') cautions.push('Milk glass is normally opaque; heavily frosted clear glass may be a better match.');
     if(color.id==='black'&&state.opacity==='transparent') cautions.push('Near-black transparent glass may reveal an underlying olive or amber hue in stronger light.');
-    if(state.form==='flat'&&state.mark!=='ripple'&&state.thickness==='thin') cautions.push('Thin flat glass can overlap with both window glass and flattened container fragments.');
+    if(state.form==='flat'&&state.mark!=='ripple') cautions.push('A small flat shard is not enough to call window glass; vessel or tableware curvature may simply be lost in the fragment.');
 
     const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
     const [top,second]=ranked;
@@ -289,7 +293,7 @@
     else if(top[1]>=6&&margin>=2) strength='Strong match';
     else if(top[1]>=4) strength='Good match';
 
-    const labels={bottle:'Bottle / container glass',jar:'Jar or heavier container',flat:'Flat / window glass',decorative:'Decorative or specialty glass',slag:'Industrial slag',insulator:'Utility / insulator glass'};
+    const labels={bottle:'Bottle / container glass',jar:'Jar or heavier container',flat:'Flat glass / source unresolved',decorative:'Decorative or specialty glass',slag:'Industrial slag',insulator:'Utility / insulator glass'};
     return {scores,ranked,topType:top[0],topScore:top[1],secondScore:second[1],label:labels[top[0]],strength,evidence,cautions};
   }
 
@@ -306,12 +310,16 @@
   }
 
   function periodReading(){
-    if(state.diagnosticKey==='seam'&&state.diagnostic==='through') return 'Machine-made manufacture likely';
-    if(state.diagnosticKey==='seam'&&state.diagnostic==='stops') return 'Mouth-blown manufacture possible';
-    if(state.diagnosticKey==='base'&&state.diagnostic==='pontil') return 'Earlier mouth-blown manufacture possible';
-    if(state.diagnosticKey==='base'&&state.diagnostic==='machine') return 'Machine-made manufacture likely';
-    if((state.diagnosticKey==='base'&&state.diagnostic==='embossed')||(state.diagnosticKey==='embossing'&&state.diagnostic)) return 'Diagnostic dating clue present';
-    return 'Not enough evidence';
+    if(state.diagnosticKey==='base'&&state.diagnostic==='pontil') return 'Usually pre-1870s; utilitarian bottles often pre-1865';
+    if(state.color==='lavender'){
+      if((state.diagnosticKey==='seam'&&state.diagnostic==='through')||(state.diagnosticKey==='base'&&state.diagnostic==='machine')) return 'ca. 1905–early 1920s likely · manganese-decolorized glass';
+      return 'ca. 1890–1920 likely · later manganese examples possible';
+    }
+    if(state.diagnosticKey==='seam'&&state.diagnostic==='through') return 'Machine-made · generally 20th century';
+    if(state.diagnosticKey==='seam'&&state.diagnostic==='stops') return 'Mouth-blown · commonly pre-1920';
+    if(state.diagnosticKey==='base'&&state.diagnostic==='machine') return 'Machine-made · generally 20th century';
+    if((state.diagnosticKey==='base'&&state.diagnostic==='embossed')||(state.diagnosticKey==='embossing'&&state.diagnostic)) return 'Diagnostic mark present · maker research may narrow date';
+    return 'Broad date only · stronger manufacturing clue needed';
   }
 
   function renderResult(){
@@ -344,7 +352,7 @@
     root.querySelector('#regionSpecificText').textContent=regional||'No strong color-specific regional clue is available for this combination.';
     root.querySelector('#regionalHistory').textContent=region.blurb;
     root.querySelector('#researchBasis').textContent=[...(color.refs||[]),...(region.refs||[])].filter((v,i,a)=>a.indexOf(v)===i).join(' · ')+'.';
-    root.querySelector('#interpretationText').textContent='This reading weights diagnostic form and markings more heavily than color. Thickness, opacity, weathering, and shoreline context provide supporting evidence. Color alone does not establish age or function.';
+    root.querySelector('#interpretationText').textContent='This reading weights diagnostic manufacturing clues most heavily. Small-fragment shape is supporting evidence only; color chemistry, finishes, seams, bases, embossing, thickness, opacity, weathering, and shoreline context can sometimes provide stronger chronological or functional evidence.';
 
     const fs=formScore(state.form);
     const hs=historyScore();
@@ -466,7 +474,7 @@
       });
     }
 
-    const label=home.querySelector('.section-label');
+    const label=root.querySelector('[data-screen="home"] .section-label');
     if(label&&!home.querySelector('.home-archive-heading')){
       const heading=document.createElement('div');
       heading.className='home-archive-heading';
