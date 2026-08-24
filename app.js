@@ -57,6 +57,7 @@
     if(state.mark==='letters') return {key:'embossing',question:'What kind of mark survives?',help:'Even a partial mark can be more useful than color.',options:[['letters','Letters or a word'],['numbers','Numbers only'],['symbol','Symbol or maker mark'],['unclear','Too partial to tell']]};
     if(state.form==='rim'||state.form==='neck') return {key:'seam',question:'What does the mold seam do near the finish?',help:'The seam-to-finish relationship can help separate mouth-blown from machine-made manufacture.',options:[['through','Continues through the lip / finish'],['stops','Stops below the lip / finish'],['noseam','No seam visible'],['unclear','Hard to tell']]};
     if(state.form==='base') return {key:'base',question:'What is visible on the base?',help:'Base scars, rings, and embossing are especially useful manufacturing clues.',options:[['pontil','Rough or polished circular scar'],['machine','Smooth concentric machine ring'],['embossed','Letters, numbers, or maker mark'],['plain','No obvious feature'],['unclear','Hard to tell']]};
+    if(state.color==='lavender') return {key:'manganese',question:'How does the lavender color appear?',help:'A pale or uneven lavender cast can support solarized manganese-decolorized glass. Deep, even purple may have been intentionally colored.',options:[['solarized','Pale / uneven lavender cast'],['deep','Deep, even purple throughout'],['unclear','Hard to tell']]};
     if(state.color==='black') return {key:'backlight',question:'What color appears under strong backlight?',help:'Most “black” beach glass is actually a very deep color.',options:[['olive','Olive / green'],['brown','Brown / amber'],['bluepurple','Blue / purple'],['black','Still appears black'],['unclear','Hard to tell']]};
     if(state.color==='milkglass') return {key:'milk',question:'Does light pass through the piece?',help:'True milk glass is opaque rather than simply heavily frosted.',options:[['opaque','No light passes through'],['soft','Only a soft glow passes through'],['clear','Light passes clearly through'],['unclear','Hard to tell']]};
     if(state.color==='slag') return {key:'slag',question:'Does it look glassy or stone-like?',help:'Industrial slag often has inclusions, irregular texture, or a rock-like mass rather than vessel geometry.',options:[['stone','Stone-like with inclusions'],['glassy','Smooth glassy mass'],['vessel','Curved like a vessel wall'],['unclear','Hard to tell']]};
@@ -227,8 +228,8 @@
     let score=3;
     if(state.mark==='letters') score+=4;
     if(state.form==='rim'||state.form==='base'||state.form==='neck') score+=2;
-    if(state.color==='lavender') score+=3;
-    else if(state.color==='red'||state.color==='slag'||state.color==='black') score+=1;
+    if(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized') score+=3;
+    else if(state.color==='lavender'||state.color==='red'||state.color==='slag'||state.color==='black') score+=1;
     return Math.min(10,score);
   }
 
@@ -259,7 +260,11 @@
     if(['white','brown','aqua','seafoam','green','olive','lime','darkaqua','teal'].includes(color.id)) add('bottle',2,'The selected color is compatible with historic utility-container glass.');
     if(color.id==='cobalt'){add('bottle',2,'Cobalt is compatible with medicine and specialty bottles.');add('decorative',2);}
     if(['pink','purple','gray','yellow','opalescent','canary','red','orange'].includes(color.id)) add('decorative',3,'The color raises the likelihood of decorative or specialty glass.');
-    if(color.id==='lavender') evidence.push('Lavender or amethyst color can be a chronological clue when it reflects solarized manganese-decolorized colorless glass.');
+    if(color.id==='lavender'){
+      if(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized') add('bottle',2,'A pale or uneven amethyst cast is compatible with originally colorless manganese-decolorized container glass altered by ultraviolet exposure.');
+      else if(state.diagnosticKey==='manganese'&&state.diagnostic==='deep') add('decorative',3,'Deep, even purple may have been intentionally colored rather than solarized from originally colorless glass.');
+      else evidence.push('Lavender or amethyst can be a chronological clue, but only when solarized manganese-decolorized glass is the better explanation.');
+    }
     if(color.id==='teal'){add('jar',2,'Teal was also used for utilitarian jars and containers.');add('insulator',1,'Teal appears in historic electrical insulators as well as vessels.');}
     if(color.id==='darkaqua'){add('insulator',2,'Dark aqua can appear in historic electrical insulators.');add('decorative',1);}
     if(color.id==='milkglass'){add('jar',3,'Milk glass commonly appears in cosmetic, ointment, and household containers.');}
@@ -283,11 +288,12 @@
     if(color.id==='milkglass'&&state.opacity!=='opaque') cautions.push('Milk glass is normally opaque; heavily frosted clear glass may be a better match.');
     if(color.id==='black'&&state.opacity==='transparent') cautions.push('Near-black transparent glass may reveal an underlying olive or amber hue in stronger light.');
     if(state.form==='flat'&&state.mark!=='ripple') cautions.push('A small flat shard is not enough to call window glass; vessel or tableware curvature may simply be lost in the fragment.');
+    if(color.id==='lavender'&&state.diagnosticKey==='manganese'&&state.diagnostic==='unclear') cautions.push('Lavender may be intentional color or solarized manganese glass; the manganese date range should not be used unless solarization is the better fit.');
 
     const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
     const [top,second]=ranked;
     const margin=top[1]-second[1];
-    const diagnostic=(state.form==='rim'||state.form==='base'||state.form==='neck'||state.mark==='letters'||state.mark==='ripple');
+    const diagnostic=(state.form==='rim'||state.form==='base'||state.form==='neck'||state.mark==='letters'||state.mark==='ripple'||(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized'));
     let strength='Possible';
     if(top[1]>=8&&margin>=3&&diagnostic) strength='Distinctive match';
     else if(top[1]>=6&&margin>=2) strength='Strong match';
@@ -302,6 +308,7 @@
       seam:{through:'Seam continues through finish',stops:'Seam stops below finish',noseam:'No seam visible',unclear:'Seam unclear'},
       base:{pontil:'Circular base scar',machine:'Concentric machine ring',embossed:'Embossed base',plain:'Plain base',unclear:'Base feature unclear'},
       embossing:{letters:'Readable letters / word',numbers:'Numbers only',symbol:'Symbol / maker mark',unclear:'Partial mark'},
+      manganese:{solarized:'Pale / uneven solarized lavender cast',deep:'Deep even purple · intentional color possible',unclear:'Lavender origin unclear'},
       backlight:{olive:'Backlights olive / green',brown:'Backlights brown / amber',bluepurple:'Backlights blue / purple',black:'Still appears black',unclear:'Backlit color unclear'},
       milk:{opaque:'Confirmed opaque',soft:'Soft glow only',clear:'Transmits clear light',unclear:'Opacity unclear'},
       slag:{stone:'Stone-like with inclusions',glassy:'Smooth glassy mass',vessel:'Vessel-like curvature',unclear:'Texture unclear'}
@@ -311,10 +318,9 @@
 
   function periodReading(){
     if(state.diagnosticKey==='base'&&state.diagnostic==='pontil') return 'Usually pre-1870s; utilitarian bottles often pre-1865';
-    if(state.color==='lavender'){
-      if((state.diagnosticKey==='seam'&&state.diagnostic==='through')||(state.diagnosticKey==='base'&&state.diagnostic==='machine')) return 'ca. 1905–early 1920s likely · manganese-decolorized glass';
-      return 'ca. 1890–1920 likely · later manganese examples possible';
-    }
+    if(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized') return 'ca. 1890–1920 probable · some examples into the 1930s';
+    if(state.diagnosticKey==='manganese'&&state.diagnostic==='deep') return 'Intentional purple possible · date unresolved from color alone';
+    if(state.color==='lavender') return 'If solarized manganese glass: ca. 1890–1920 probable';
     if(state.diagnosticKey==='seam'&&state.diagnostic==='through') return 'Machine-made · generally 20th century';
     if(state.diagnosticKey==='seam'&&state.diagnostic==='stops') return 'Mouth-blown · commonly pre-1920';
     if(state.diagnosticKey==='base'&&state.diagnostic==='machine') return 'Machine-made · generally 20th century';
@@ -351,7 +357,9 @@
     root.querySelector('#colorNote').textContent=`${color.note} ${reading.evidence.slice(0,3).join(' ')}`;
     root.querySelector('#regionSpecificText').textContent=regional||'No strong color-specific regional clue is available for this combination.';
     root.querySelector('#regionalHistory').textContent=region.blurb;
-    root.querySelector('#researchBasis').textContent=[...(color.refs||[]),...(region.refs||[])].filter((v,i,a)=>a.indexOf(v)===i).join(' · ')+'.';
+    const researchRefs=[...(color.refs||[]),...(region.refs||[])];
+    if(color.id==='lavender') researchRefs.unshift('Society for Historical Archaeology — Historic Glass Bottle Identification');
+    root.querySelector('#researchBasis').textContent=researchRefs.filter((v,i,a)=>a.indexOf(v)===i).join(' · ')+'.';
     root.querySelector('#interpretationText').textContent='This reading weights diagnostic manufacturing clues most heavily. Small-fragment shape is supporting evidence only; color chemistry, finishes, seams, bases, embossing, thickness, opacity, weathering, and shoreline context can sometimes provide stronger chronological or functional evidence.';
 
     const fs=formScore(state.form);
