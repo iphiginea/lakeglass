@@ -93,11 +93,95 @@
     });
   }
 
-  function specimenCode(){
-    return `LM-${new Date().getFullYear()}-${String(Math.floor(Math.random()*900+100))}`;
+  const ACCESSION_CODES={
+    white:'CLEAR',brown:'AMBER',aqua:'AQUA',seafoam:'SEAFOAM',green:'GREEN',olive:'OLIVE',lime:'LIME',
+    cobalt:'COBALT',darkaqua:'DARKAQUA',teal:'TEAL',milkglass:'MILK',lavender:'LAVENDER',pink:'PINK',
+    purple:'PURPLE',gray:'GRAY',yellow:'YELLOW',opalescent:'OPALESCENT',canary:'CANARY',black:'BLACK',
+    red:'RED',orange:'ORANGE',slag:'SLAG',unclassified:'UNC'
+  };
+  const LEGACY_DEMO_IDS=new Set(['LM-042','LM-041','LM-040','LM-039']);
+  const savedSpecimens=[];
+  const ARCHIVE_DB='lakeglass-archive';
+  const ARCHIVE_STORE='collection';
+  let currentSpecimenCode='';
+
+  function accessionCodeFor(colorId){
+    return ACCESSION_CODES[colorId]||'UNC';
   }
 
-  let currentSpecimenCode=specimenCode();
+  function inferColorId(d){
+    const requested=String(d?.accessionColor||d?.colorId||'');
+    if(GLASS_COLORS.some(c=>c.id===requested)) return requested;
+    const hex=String(d?.color||'').trim().toLowerCase();
+    const byHex=GLASS_COLORS.find(c=>String(c.hex||'').toLowerCase()===hex);
+    if(byHex) return byHex.id;
+    const name=String(d?.name||'').trim().toLowerCase();
+    const byName=GLASS_COLORS.find(c=>c.name.toLowerCase()===name);
+    if(byName) return byName.id;
+    if(name.includes('clear')||name.includes('white')) return 'white';
+    if(name.includes('amber')||name.includes('brown')) return 'brown';
+    if(name.includes('aqua')&&!name.includes('dark')) return 'aqua';
+    if(name.includes('green')&&!name.includes('olive')&&!name.includes('lime')) return 'green';
+    return 'unclassified';
+  }
+
+  function accessionNumberFromId(id,colorId){
+    const match=String(id||'').match(/^LM\.([A-Z0-9]+)\.(\d+)$/);
+    if(!match||match[1]!==accessionCodeFor(colorId)) return null;
+    const n=Number(match[2]);
+    return Number.isInteger(n)&&n>0?n:null;
+  }
+
+  function nextAccession(colorId){
+    let max=0;
+    savedSpecimens.forEach(d=>{
+      const dColor=inferColorId(d);
+      if(dColor!==colorId) return;
+      const n=Number(d.accessionNumber)||accessionNumberFromId(d.id,dColor)||0;
+      if(n>max) max=n;
+    });
+    const number=max+1;
+    return {number,id:`LM.${accessionCodeFor(colorId)}.${String(number).padStart(3,'0')}`};
+  }
+
+  function cleanArchiveRows(rows){
+    if(!Array.isArray(rows)) return [];
+    return rows.filter(d=>d&&typeof d==='object'&&!LEGACY_DEMO_IDS.has(String(d.id||''))).map(d=>({...d}));
+  }
+
+  function normalizeAccessionRows(rows){
+    const clean=cleanArchiveRows(rows);
+    const maxima={};
+    const used={};
+
+    clean.forEach(d=>{
+      const colorId=inferColorId(d);
+      d.accessionColor=colorId;
+      const existing=Number(d.accessionNumber)||accessionNumberFromId(d.id,colorId);
+      if(existing&&(!used[colorId]||!used[colorId].has(existing))){
+        if(!used[colorId]) used[colorId]=new Set();
+        used[colorId].add(existing);
+        d.accessionNumber=existing;
+        d.id=`LM.${accessionCodeFor(colorId)}.${String(existing).padStart(3,'0')}`;
+        maxima[colorId]=Math.max(maxima[colorId]||0,existing);
+      }else{
+        d.accessionNumber=null;
+      }
+    });
+
+    [...clean].reverse().forEach(d=>{
+      if(d.accessionNumber) return;
+      const colorId=d.accessionColor||'unclassified';
+      const number=(maxima[colorId]||0)+1;
+      maxima[colorId]=number;
+      if(!used[colorId]) used[colorId]=new Set();
+      used[colorId].add(number);
+      d.accessionNumber=number;
+      d.id=`LM.${accessionCodeFor(colorId)}.${String(number).padStart(3,'0')}`;
+    });
+
+    return clean;
+  }
 
   function rarityLabel(score){
     if(score<=1) return 'Common color';
@@ -226,9 +310,9 @@
     const region=REGIONS[state.region]||REGIONS.unsure;
     const regional=color&&region.colorNote[color.id];
     const reading=evaluateSpecimen(color);
-    currentSpecimenCode=specimenCode();
+    currentSpecimenCode=nextAccession(color.id).id;
 
-    root.querySelector('#resultSpecNo').textContent=currentSpecimenCode;
+    root.querySelector('#resultSpecNo').textContent=`Next accession · ${currentSpecimenCode}`;
     root.querySelector('#resultName').textContent=color.name;
     root.querySelector('#resultRegion').textContent=`${region.label} · Lake Michigan`;
     root.querySelector('#rarityFill').style.width=`${color.rarity*10}%`;
@@ -288,11 +372,6 @@
   renderDiagnostic();
   root.querySelector('#analyzeBtn').addEventListener('click',()=>{renderResult();show('result');});
 
-  const LEGACY_DEMO_IDS=new Set(['LM-042','LM-041','LM-040','LM-039']);
-  const savedSpecimens=[];
-  const ARCHIVE_DB='lakeglass-archive';
-  const ARCHIVE_STORE='collection';
-
   function openArchiveDb(){
     return new Promise((resolve,reject)=>{
       if(!('indexedDB' in window)){resolve(null);return;}
@@ -320,11 +399,6 @@
     }catch(err){}
   }
 
-  function cleanArchiveRows(rows){
-    if(!Array.isArray(rows)) return [];
-    return rows.filter(d=>d&&typeof d==='object'&&!LEGACY_DEMO_IDS.has(String(d.id||'')));
-  }
-
   async function restoreSavedSpecimens(){
     try{
       const db=await openArchiveDb();
@@ -338,9 +412,10 @@
       db.close();
 
       if(Array.isArray(rows)){
-        const cleaned=cleanArchiveRows(rows);
-        savedSpecimens.splice(0,savedSpecimens.length,...cleaned);
-        if(cleaned.length!==rows.length) await persistSavedSpecimens();
+        const normalized=normalizeAccessionRows(rows);
+        const changed=JSON.stringify(normalized)!==JSON.stringify(rows);
+        savedSpecimens.splice(0,savedSpecimens.length,...normalized);
+        if(changed) await persistSavedSpecimens();
       }
       renderCollection();
     }catch(err){
@@ -354,12 +429,54 @@
     return first;
   }
 
-  function renderHomeArchive(){
+  function ensureArchiveNavigation(){
     const home=root.querySelector('[data-screen="home"]');
     if(!home) return;
 
+    const firstMetric=home.querySelector('.metrics .metric');
+    if(firstMetric&&!firstMetric.dataset.archiveBound){
+      firstMetric.dataset.archiveBound='1';
+      firstMetric.classList.add('metric-link');
+      firstMetric.tabIndex=0;
+      firstMetric.setAttribute('role','button');
+      firstMetric.setAttribute('aria-label','View full specimen collection');
+      firstMetric.addEventListener('click',()=>show('collection'));
+      firstMetric.addEventListener('keydown',e=>{
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();show('collection');}
+      });
+    }
+
+    const label=home.querySelector('.section-label');
+    if(label&&!home.querySelector('.home-archive-heading')){
+      const heading=document.createElement('div');
+      heading.className='home-archive-heading';
+      const view=document.createElement('button');
+      view.className='view-collection-btn';
+      view.type='button';
+      view.textContent='View collection →';
+      view.addEventListener('click',()=>show('collection'));
+      label.before(heading);
+      heading.append(label,view);
+    }
+  }
+
+  function ensureAccessionHelp(){
+    const collection=root.querySelector('[data-screen="collection"]');
+    if(!collection||collection.querySelector('.accession-help')) return;
+    const tools=collection.querySelector('.archive-tools');
+    const help=document.createElement('div');
+    help.className='accession-help';
+    help.innerHTML='<b>About accession numbers</b><p>Each color keeps its own permanent sequence. <strong>LM.CLEAR.005</strong> is the fifth clear/white specimen in your archive; <strong>LM.GREEN.001</strong> is your first green. Numbers are never reused after deletion.</p>';
+    tools.before(help);
+  }
+
+  function renderHomeArchive(){
+    const home=root.querySelector('[data-screen="home"]');
+    if(!home) return;
+    ensureArchiveNavigation();
+
     const metricValues=[...home.querySelectorAll('.metrics .metric b')];
-    const uniqueColors=new Set(savedSpecimens.map(d=>String(d.color||d.name||'').trim().toLowerCase()).filter(Boolean));
+    const uniqueColors=new Set(savedSpecimens.map(d=>inferColorId(d)).filter(v=>v&&v!=='unclassified'));
     const uniqueBeaches=new Set(savedSpecimens.map(specimenBeach).filter(Boolean));
     if(metricValues[0]) metricValues[0].textContent=String(savedSpecimens.length).padStart(2,'0');
     if(metricValues[1]) metricValues[1].textContent=String(uniqueColors.size).padStart(2,'0');
@@ -404,6 +521,7 @@
   let activeDetailIndex=null;
 
   function renderCollection(){
+    ensureAccessionHelp();
     const grid=root.querySelector('#collectionGrid');
     grid.innerHTML='';
 
@@ -501,7 +619,7 @@
   root.querySelector('#deleteSpecimenBtn').addEventListener('click',()=>{
     if(activeDetailIndex===null||!savedSpecimens[activeDetailIndex]) return;
     const d=savedSpecimens[activeDetailIndex];
-    if(!window.confirm(`Delete ${d.id} from your collection?`)) return;
+    if(!window.confirm(`Delete ${d.id} from your collection? Its accession number will not be reused.`)) return;
     savedSpecimens.splice(activeDetailIndex,1);
     activeDetailIndex=null;
     persistSavedSpecimens();
@@ -510,7 +628,7 @@
   });
 
   root.querySelector('#exportCollectionBtn').addEventListener('click',()=>{
-    const payload={app:'Lakeglass',version:2,exportedAt:new Date().toISOString(),specimens:savedSpecimens};
+    const payload={app:'Lakeglass',version:3,accessionSystem:'per-color',exportedAt:new Date().toISOString(),specimens:savedSpecimens};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
@@ -533,9 +651,11 @@
         const parsed=JSON.parse(String(reader.result||''));
         const rows=Array.isArray(parsed)?parsed:parsed.specimens;
         if(!Array.isArray(rows)) throw new Error('Invalid archive');
-        const clean=cleanArchiveRows(rows.slice(0,500).filter(d=>d&&typeof d==='object').map((d,i)=>({
+        const raw=rows.slice(0,500).filter(d=>d&&typeof d==='object').map((d,i)=>({
           key:String(d.key||`imported-${Date.now()}-${i}`),
-          id:String(d.id||`LM-IMP-${i+1}`).slice(0,40),
+          id:String(d.id||'').slice(0,80),
+          accessionColor:String(d.accessionColor||d.colorId||'').slice(0,40),
+          accessionNumber:Number(d.accessionNumber)||null,
           name:String(d.name||'Imported specimen').slice(0,120),
           color:String(d.color||'#8cc9c5').slice(0,40),
           provenance:String(d.provenance||'Not recorded').slice(0,220),
@@ -543,8 +663,9 @@
           rarity:String(d.rarity||'Not recorded').slice(0,80),
           source:String(d.source||'Unresolved').slice(0,160),
           notes:String(d.notes||'No identification notes recorded.').slice(0,1200)
-        })));
-        savedSpecimens.splice(0,savedSpecimens.length,...clean);
+        }));
+        const normalized=normalizeAccessionRows(raw);
+        savedSpecimens.splice(0,savedSpecimens.length,...normalized);
         persistSavedSpecimens();
         renderCollection();
         show('collection');
@@ -569,10 +690,14 @@
       note?`Collector note: ${note}`:'',
       date?`Found ${new Date(date+'T00:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}.`:''
     ].filter(Boolean).join(' ');
+    const accession=nextAccession(color.id);
+    currentSpecimenCode=accession.id;
 
     savedSpecimens.unshift({
       key:`saved-${Date.now()}`,
-      id:currentSpecimenCode,
+      id:accession.id,
+      accessionColor:color.id,
+      accessionNumber:accession.number,
       name:color.name,
       color:color.hex,
       provenance,
