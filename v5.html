@@ -1,6 +1,131 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f8f6"><title>Lakeglass V5 Preview</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="archive.css"><style>#v5boot{min-height:100dvh;display:grid;place-items:center;padding:28px;background:#fffdf8;color:#29454c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.v5card{width:min(520px,100%);padding:24px;border:1px solid #d8e1df;border-radius:20px;background:#fff}.v5card h1{font-family:"Iowan Old Style",Palatino,Georgia,serif;font-size:34px;font-weight:500;margin:0 0 10px}.v5card p{line-height:1.55;color:#677a7f}.v5card a{display:block;margin-top:12px;border-radius:999px;padding:13px 16px;text-align:center;text-decoration:none;background:#315f69;color:#fff}.v5-source-note{margin:10px 0 18px;padding:10px 12px;border:1px solid #d8e1df;border-radius:12px;background:#f2f7f5;color:#536b71;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><div id="v5boot"><div class="v5card"><h1>Opening upgraded Lakeglass…</h1><p id="v5msg">Reading your original Lakeglass archive directly.</p></div></div><script>(async()=>{const msg=document.getElementById('v5msg');function openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open('lakeglass-archive');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}function get(db,key){return new Promise((resolve,reject)=>{const tx=db.transaction('collection','readonly'),r=tx.objectStore('collection').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}function script(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});}function ids(rows){return (Array.isArray(rows)?rows:[]).map(r=>String(r&&r.id||'')).sort();}try{const db=await openDb();if(!db.objectStoreNames.contains('collection'))throw new Error('Lakeglass collection store not found.');const originalRows=await get(db,'specimens');db.close();if(!Array.isArray(originalRows)||!originalRows.length){document.getElementById('v5boot').innerHTML='<div class="v5card"><h1>Original archive not visible here</h1><p>V5 did not find records in the original <code>specimens</code> key in this browser context. Nothing was changed.</p><a href="./recover.html">Check original archive →</a><a href="./">Return to stable Lakeglass</a></div>';return;}window.LAKEGLASS_ORIGINAL_IDS=ids(originalRows);window.LAKEGLASS_ORIGINAL_COUNT=originalRows.length;msg.textContent=`Found ${originalRows.length} original specimen${originalRows.length===1?'':'s'}. Loading them directly…`;const base='https://raw.githubusercontent.com/iphiginea/lakeglass/75562c0a67c7fae5f86fe164a7865ce0f21a5a75/';const html=await fetch(base+'index.html',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load V5 interface snapshot.');return r.text();});const parsed=new DOMParser().parseFromString(html,'text/html');const root=parsed.querySelector('#lake-glass-mockup');if(!root)throw new Error('V5 interface snapshot is invalid.');document.body.innerHTML='';document.body.appendChild(document.importNode(root,true));const home=document.querySelector('[data-screen="home"] .field-note');if(home){const note=document.createElement('div');note.className='v5-source-note';note.textContent=`V5 preview · reading ${originalRows.length} original archive records · original archive is read-only here`;home.before(note);}await script('./data.js');let code=await fetch(base+'app.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load V5 application snapshot.');return r.text();});const persistReplacement=`async function persistArchive(){\n    try{\n      const db=await openArchiveDb();if(!db)return;\n      const baseIds=Array.isArray(window.LAKEGLASS_ORIGINAL_IDS)?window.LAKEGLASS_ORIGINAL_IDS:[];\n      await new Promise((resolve,reject)=>{const tx=db.transaction(ARCHIVE_STORE,'readwrite');const store=tx.objectStore(ARCHIVE_STORE);store.put(structuredClone(savedSpecimens),'specimensV5');store.put({...accessionCounters},'accessionCountersV5');store.put({...archiveMeta,schemaVersion:5,baseOriginalIds:baseIds,baseOriginalCount:baseIds.length,shadow:true},'archiveMetaV5');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();\n    }catch(err){console.error('Lakeglass V5 shadow save failed',err);}\n  }\n\n  function markArchiveChanged`;
-code=code.replace(/async function persistArchive\(\)\{[\s\S]*?\n  \}\n\n  function markArchiveChanged/,persistReplacement);
-const restoreReplacement=`async function restoreArchive(){\n    try{\n      const db=await openArchiveDb();if(!db){renderAll();return;}\n      const restored=await new Promise((resolve,reject)=>{const tx=db.transaction(ARCHIVE_STORE,'readonly');const store=tx.objectStore(ARCHIVE_STORE);const legacy=store.get('specimens'),legacyCounters=store.get('accessionCounters'),shadow=store.get('specimensV5'),shadowCounters=store.get('accessionCountersV5'),meta=store.get('archiveMetaV5');tx.oncomplete=()=>resolve({legacy:legacy.result,legacyCounters:legacyCounters.result,shadow:shadow.result,shadowCounters:shadowCounters.result,meta:meta.result});tx.onerror=()=>reject(tx.error);});db.close();\n      const legacyRows=Array.isArray(restored.legacy)?restored.legacy:[];\n      const legacyIds=legacyRows.map(r=>String(r&&r.id||'')).sort();\n      const baseIds=Array.isArray(restored.meta?.baseOriginalIds)?restored.meta.baseOriginalIds:[];\n      const shadowValid=Array.isArray(restored.shadow)&&baseIds.length===legacyIds.length&&baseIds.every((v,i)=>v===legacyIds[i]);\n      const sourceRows=shadowValid?restored.shadow:legacyRows;\n      savedSpecimens.splice(0,savedSpecimens.length,...sourceRows.map(normalizeRecord));\n      Object.keys(accessionCounters).forEach(k=>delete accessionCounters[k]);\n      const counterSource=shadowValid?restored.shadowCounters:restored.legacyCounters;\n      if(counterSource&&typeof counterSource==='object')Object.entries(counterSource).forEach(([k,v])=>{const n=Number(v);if(Number.isInteger(n)&&n>0)accessionCounters[k]=n;});\n      mergeCounters();\n      if(shadowValid&&restored.meta&&typeof restored.meta==='object')Object.assign(archiveMeta,restored.meta,{schemaVersion:5});\n      else Object.assign(archiveMeta,{schemaVersion:5,revision:0,lastExportAt:null,lastExportCount:0,lastExportRevision:0});\n      renderAll();\n    }catch(err){console.error('Lakeglass V5 restore failed',err);renderAll();}\n  }\n\n  function selectedObservation`;
-code=code.replace(/async function restoreArchive\(\)\{[\s\S]*?\n  \}\n\n  function selectedObservation/,restoreReplacement);
-new Function(code)();}catch(err){const boot=document.getElementById('v5boot');if(boot)boot.innerHTML=`<div class="v5card"><h1>Preview did not open</h1><p>${String(err&&err.message||err)}</p><p>Your original archive was not modified.</p><a href="./recover.html">Check original archive</a><a href="./">Return to stable Lakeglass</a></div>`;}})();</script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f8f6">
+<title>Lakeglass V5 Preview</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="archive.css">
+<style>
+#v5boot{min-height:100dvh;display:grid;place-items:center;padding:28px;background:#fffdf8;color:#29454c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.v5card{width:min(520px,100%);padding:24px;border:1px solid #d8e1df;border-radius:20px;background:#fff}
+.v5card h1{font-family:"Iowan Old Style",Palatino,Georgia,serif;font-size:34px;font-weight:500;margin:0 0 10px}
+.v5card p{line-height:1.55;color:#677a7f}
+.v5card a{display:block;margin-top:12px;border-radius:999px;padding:13px 16px;text-align:center;text-decoration:none;background:#315f69;color:#fff}
+.v5-source-note{margin:10px 0 18px;padding:10px 12px;border:1px solid #d8e1df;border-radius:12px;background:#f2f7f5;color:#536b71;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+</head>
+<body>
+<div id="v5boot"><div class="v5card"><h1>Opening upgraded Lakeglass…</h1><p id="v5msg">Reading your protected archive.</p></div></div>
+<script>
+(async()=>{
+  const msg=document.getElementById('v5msg');
+  function openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open('lakeglass-archive');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+  function get(db,key){return new Promise((resolve,reject)=>{const tx=db.transaction('collection','readonly'),r=tx.objectStore('collection').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+  function script(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);});}
+  function ids(rows){return (Array.isArray(rows)?rows:[]).map(r=>String(r&&r.id||'')).filter(Boolean).sort();}
+  try{
+    const db=await openDb();
+    if(!db.objectStoreNames.contains('collection')) throw new Error('Lakeglass collection store not found.');
+    const originalRows=await get(db,'specimens');
+    db.close();
+    if(!Array.isArray(originalRows)||!originalRows.length){
+      document.getElementById('v5boot').innerHTML='<div class="v5card"><h1>Original archive not visible here</h1><p>V5 did not find records in the original <code>specimens</code> key in this browser context. Nothing was changed.</p><a href="./recover.html">Check original archive →</a><a href="./">Return to stable Lakeglass</a></div>';
+      return;
+    }
+    window.LAKEGLASS_ORIGINAL_IDS=ids(originalRows);
+    window.LAKEGLASS_ORIGINAL_COUNT=originalRows.length;
+    msg.textContent=`Found ${originalRows.length} protected specimen${originalRows.length===1?'':'s'}. Loading V5…`;
+
+    const base='https://raw.githubusercontent.com/iphiginea/lakeglass/75562c0a67c7fae5f86fe164a7865ce0f21a5a75/';
+    const html=await fetch(base+'index.html',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load V5 interface snapshot.');return r.text();});
+    const parsed=new DOMParser().parseFromString(html,'text/html');
+    const root=parsed.querySelector('#lake-glass-mockup');
+    if(!root) throw new Error('V5 interface snapshot is invalid.');
+    document.body.innerHTML='';
+    document.body.appendChild(document.importNode(root,true));
+    const home=document.querySelector('[data-screen="home"] .field-note');
+    if(home){
+      const note=document.createElement('div');
+      note.className='v5-source-note';
+      note.id='v5StorageStatus';
+      note.textContent=`V5 preview · ${originalRows.length} protected original records · checking for saved V5 changes…`;
+      home.before(note);
+    }
+    await script('./data.js?savefix=1');
+    let code=await fetch(base+'app.js',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load V5 application snapshot.');return r.text();});
+
+    const persistReplacement=`async function persistArchive(){
+    try{
+      const db=await openArchiveDb();if(!db)return;
+      const baseIds=Array.isArray(window.LAKEGLASS_ORIGINAL_IDS)?window.LAKEGLASS_ORIGINAL_IDS:[];
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(ARCHIVE_STORE,'readwrite');
+        const store=tx.objectStore(ARCHIVE_STORE);
+        store.put(structuredClone(savedSpecimens),'specimensV5');
+        store.put({...accessionCounters},'accessionCountersV5');
+        store.put({...archiveMeta,schemaVersion:5,baseOriginalIds:baseIds,baseOriginalCount:baseIds.length,shadow:true,lastShadowSaveAt:new Date().toISOString()},'archiveMetaV5');
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('V5 shadow save aborted'));
+      });
+      db.close();
+      window.LAKEGLASS_V5_LAST_SAVE=new Date().toISOString();
+      const status=document.getElementById('v5StorageStatus');
+      if(status) status.textContent='V5 shadow saved · original archive remains untouched · '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'});
+    }catch(err){
+      console.error('Lakeglass V5 shadow save failed',err);
+      const status=document.getElementById('v5StorageStatus');
+      if(status) status.textContent='V5 SAVE FAILED · original archive is still safe';
+      window.alert('Lakeglass could not save this V5 change. Your original archive is still safe.');
+    }
+  }
+
+  function markArchiveChanged`;
+    code=code.replace(/async function persistArchive\(\)\{[\s\S]*?\n  \}\n\n  function markArchiveChanged/,persistReplacement);
+
+    const restoreReplacement=`async function restoreArchive(){
+    try{
+      const db=await openArchiveDb();if(!db){renderAll();return;}
+      const restored=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(ARCHIVE_STORE,'readonly');const store=tx.objectStore(ARCHIVE_STORE);
+        const legacy=store.get('specimens'),legacyCounters=store.get('accessionCounters'),shadow=store.get('specimensV5'),shadowCounters=store.get('accessionCountersV5'),meta=store.get('archiveMetaV5');
+        tx.oncomplete=()=>resolve({legacy:legacy.result,legacyCounters:legacyCounters.result,shadow:shadow.result,shadowCounters:shadowCounters.result,meta:meta.result});tx.onerror=()=>reject(tx.error);
+      });
+      db.close();
+      const legacyRows=Array.isArray(restored.legacy)?restored.legacy:[];
+      const legacyIds=legacyRows.map(r=>String(r&&r.id||'')).filter(Boolean).sort();
+      const shadowRows=Array.isArray(restored.shadow)?restored.shadow:[];
+      const shadowIdSet=new Set(shadowRows.map(r=>String(r&&r.id||'')).filter(Boolean));
+      const shadowValid=shadowRows.length>0&&legacyIds.every(id=>shadowIdSet.has(id));
+      const sourceRows=shadowValid?shadowRows:legacyRows;
+      window.LAKEGLASS_V5_SOURCE=shadowValid?'shadow':'original';
+      savedSpecimens.splice(0,savedSpecimens.length,...sourceRows.map(normalizeRecord));
+      Object.keys(accessionCounters).forEach(k=>delete accessionCounters[k]);
+      const counterSource=shadowValid?restored.shadowCounters:restored.legacyCounters;
+      if(counterSource&&typeof counterSource==='object') Object.entries(counterSource).forEach(([k,v])=>{const n=Number(v);if(Number.isInteger(n)&&n>0)accessionCounters[k]=n;});
+      mergeCounters();
+      if(shadowValid&&restored.meta&&typeof restored.meta==='object') Object.assign(archiveMeta,restored.meta,{schemaVersion:5});
+      else Object.assign(archiveMeta,{schemaVersion:5,revision:0,lastExportAt:null,lastExportCount:0,lastExportRevision:0});
+      renderAll();
+      const status=document.getElementById('v5StorageStatus');
+      if(status) status.textContent=shadowValid
+        ? 'V5 saved archive loaded · '+sourceRows.length+' records · original archive remains untouched'
+        : 'Original archive loaded · '+sourceRows.length+' protected records · first V5 change will create a shadow save';
+      const del=document.getElementById('deleteSpecimenBtn');
+      if(del){del.disabled=true;del.title='Deletion is disabled while V5 is in protected preview mode.';del.textContent='Delete disabled in preview';}
+    }catch(err){console.error('Lakeglass V5 restore failed',err);renderAll();}
+  }
+
+  function selectedObservation`;
+    code=code.replace(/async function restoreArchive\(\)\{[\s\S]*?\n  \}\n\n  function selectedObservation/,restoreReplacement);
+
+    if(!code.includes('specimensV5')||!code.includes('shadowValid')) throw new Error('V5 safe-storage patch did not apply.');
+    new Function(code)();
+  }catch(err){
+    const boot=document.getElementById('v5boot');
+    if(boot) boot.innerHTML=`<div class="v5card"><h1>Preview did not open</h1><p>${String(err&&err.message||err)}</p><p>Your original archive was not modified.</p><a href="./recover.html">Check original archive</a><a href="./">Return to stable Lakeglass</a></div>`;
+  }
+})();
+</script>
+</body>
+</html>
