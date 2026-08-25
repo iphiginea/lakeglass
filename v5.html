@@ -19,8 +19,6 @@
 <div id="v5boot"><div class="v5card"><h1>Opening upgraded Lakeglass…</h1><p id="v5msg">Preparing your protected V5 archive.</p></div></div>
 <script>
 (async()=>{
-  const SNAPSHOT='75562c0a67c7fae5f86fe164a7865ce0f21a5a75';
-  const CDN=`https://cdn.jsdelivr.net/gh/iphiginea/lakeglass@${SNAPSHOT}/`;
   const msg=document.getElementById('v5msg');
   const openDb=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('lakeglass-archive');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
   const read=(db,key)=>new Promise((resolve,reject)=>{const tx=db.transaction('collection','readonly');const r=tx.objectStore('collection').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
@@ -38,7 +36,7 @@
     db.close();
     if(!Array.isArray(original)||!original.length) throw new Error('The protected original collection is not visible in this browser context.');
 
-    let usingShadow=Array.isArray(shadow)&&shadow.length&&containsOriginal(shadow,original);
+    const usingShadow=Array.isArray(shadow)&&shadow.length>0&&containsOriginal(shadow,original);
     if(!usingShadow){
       const db2=await openDb();
       await new Promise((resolve,reject)=>{
@@ -52,12 +50,12 @@
       db2.close();
     }
 
-    msg.textContent=`${original.length} protected specimen${original.length===1?'':'s'} found. Loading and testing V5…`;
+    msg.textContent=`${original.length} protected specimen${original.length===1?'':'s'} found. Loading syntax-checked V5…`;
 
-    const html=await fetch(CDN+'index.html',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load the V5 interface.');return r.text();});
+    const html=await fetch('./v5-shell.html?v=3',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load the local V5 interface.');return r.text();});
     const parsed=new DOMParser().parseFromString(html,'text/html');
     const root=parsed.querySelector('#lake-glass-mockup');
-    if(!root) throw new Error('The V5 interface snapshot is invalid.');
+    if(!root) throw new Error('The local V5 interface is invalid.');
     document.body.innerHTML='';
     document.body.appendChild(document.importNode(root,true));
 
@@ -72,20 +70,11 @@
       fieldNote.before(note);
     }
 
-    await loadScript('./data.js?v5tap=1');
-    await loadScript('./v5-storage-shim.js?v5tap=1');
+    await loadScript('./v5-data.js?v=3');
+    await loadScript('./v5-storage-shim.js?v=3');
+    await loadScript('./v5-app.js?v=3');
 
-    const appCode=await fetch(CDN+'app.js',{cache:'no-store'}).then(async r=>{
-      if(!r.ok) throw new Error(`Could not fetch V5 app code (${r.status}).`);
-      return r.text();
-    });
-    try{
-      (new Function(appCode))();
-    }catch(startErr){
-      throw new Error(`V5 app startup error: ${startErr && startErr.message ? startErr.message : startErr}`);
-    }
-
-    await new Promise(resolve=>setTimeout(resolve,80));
+    await new Promise(resolve=>setTimeout(resolve,120));
     const identifyButton=document.querySelector('.nav [data-go="identify"]')||document.querySelector('[data-go="identify"]');
     const identifyScreen=document.querySelector('[data-screen="identify"]');
     const homeButton=document.querySelector('.nav [data-go="home"]')||document.querySelector('[data-go="home"]');
