@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fffdf8">
+<title>Lakeglass Archive Recovery</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#29454c;background:#fffdf8}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;padding:28px 20px;display:grid;place-items:center}.card{width:min(520px,100%);border:1px solid #d8e1df;border-radius:20px;padding:24px;background:#fff;box-shadow:0 12px 40px rgba(41,69,76,.08)}h1{font-family:"Iowan Old Style",Palatino,Georgia,serif;font-size:34px;font-weight:500;margin:0 0 10px}p{line-height:1.55;color:#677a7f}.status{margin:18px 0;padding:16px;border-radius:14px;background:#f2f7f5}.status b{display:block;font-size:22px;margin-top:4px}.muted{font-size:12px;color:#7a898d}.actions{display:grid;gap:10px;margin-top:18px}button,a{appearance:none;border:0;border-radius:999px;padding:13px 16px;font:inherit;text-align:center;text-decoration:none;cursor:pointer}.primary{background:#315f69;color:white}.secondary{background:#edf3f1;color:#315f69}.danger-note{font-size:12px;color:#8a5b55;margin-top:16px}.raw{margin-top:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto;background:#f7f8f7;padding:12px;border-radius:10px;display:none}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="muted">LAKEGLASS · READ-ONLY RECOVERY</div>
+  <h1>Check your archive</h1>
+  <p>This page only reads the existing <strong>lakeglass-archive</strong> database. It does not clear, migrate, overwrite, renumber, or save anything.</p>
+  <div class="status" id="status">Checking local archive…</div>
+  <div class="actions" id="actions" hidden>
+    <button class="primary" id="exportBtn" type="button">Emergency export archive</button>
+    <button class="secondary" id="showBtn" type="button">Show record IDs</button>
+    <a class="secondary" href="./">Open Lakeglass</a>
+  </div>
+  <pre class="raw" id="raw"></pre>
+  <p class="danger-note">Do not clear Safari website data while recovering the archive.</p>
+</main>
+<script>
+(async()=>{
+  const status=document.getElementById('status');
+  const actions=document.getElementById('actions');
+  const raw=document.getElementById('raw');
+  let payload=null;
+  try{
+    if(!('indexedDB' in window)) throw new Error('IndexedDB is not available in this browser context.');
+    if(indexedDB.databases){
+      const dbs=await indexedDB.databases();
+      if(!dbs.some(d=>d.name==='lakeglass-archive')){
+        status.innerHTML='<span>No Lakeglass database is visible in this browser context.</span><b>0 records found</b><span class="muted">This can also happen if the collection lives in a different Safari/PWA storage context.</span>';
+        return;
+      }
+    }
+    const db=await new Promise((resolve,reject)=>{const req=indexedDB.open('lakeglass-archive');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+    if(!db.objectStoreNames.contains('collection')){db.close();throw new Error('Lakeglass database exists, but its collection store is missing.');}
+    const result=await new Promise((resolve,reject)=>{
+      const tx=db.transaction('collection','readonly');
+      const store=tx.objectStore('collection');
+      const specimens=store.get('specimens');
+      const counters=store.get('accessionCounters');
+      const meta=store.get('archiveMeta');
+      tx.oncomplete=()=>resolve({specimens:specimens.result,counters:counters.result,meta:meta.result});
+      tx.onerror=()=>reject(tx.error);
+    });
+    db.close();
+    const rows=Array.isArray(result.specimens)?result.specimens:[];
+    payload={app:'Lakeglass recovery export',recoveredAt:new Date().toISOString(),specimens:rows,accessionCounters:result.counters||{},archiveMeta:result.meta||null};
+    status.innerHTML=`<span>Direct IndexedDB check complete.</span><b>${rows.length} specimen${rows.length===1?'':'s'} found</b><span class="muted">These are the records physically stored in this browser context.</span>`;
+    if(rows.length){actions.hidden=false;}
+    document.getElementById('exportBtn').onclick=()=>{
+      const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`lakeglass-recovery-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    };
+    document.getElementById('showBtn').onclick=()=>{raw.style.display=raw.style.display==='block'?'none':'block';raw.textContent=rows.map((r,i)=>`${i+1}. ${r?.id||'(no accession id)'} · ${r?.name||'unnamed'}`).join('\n');};
+  }catch(err){
+    status.innerHTML=`<span>Archive check could not read the collection.</span><b>Recovery check failed</b><span class="muted">${String(err&&err.message||err)}</span>`;
+  }
+})();
+</script>
+</body>
+</html>
