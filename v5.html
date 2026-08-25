@@ -24,7 +24,7 @@
   const msg=document.getElementById('v5msg');
   const openDb=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('lakeglass-archive');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
   const read=(db,key)=>new Promise((resolve,reject)=>{const tx=db.transaction('collection','readonly');const r=tx.objectStore('collection').get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
-  const ids=rows=>(Array.isArray(rows)?rows:[]).map(r=>String(r?.id||'')).filter(Boolean).sort();
+  const ids=rows=>(Array.isArray(rows)?rows:[]).map(r=>String(r&&r.id||'')).filter(Boolean).sort();
   const containsOriginal=(shadow,original)=>{const set=new Set(ids(shadow));return ids(original).every(id=>set.has(id));};
   const loadScript=src=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error(`Could not load ${src}`));document.body.appendChild(s);});
 
@@ -50,10 +50,9 @@
         tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Could not initialize V5 shadow archive.'));
       });
       db2.close();
-      usingShadow=false;
     }
 
-    msg.textContent=`${original.length} protected specimen${original.length===1?'':'s'} found. Loading the interactive V5 app…`;
+    msg.textContent=`${original.length} protected specimen${original.length===1?'':'s'} found. Loading and testing V5…`;
 
     const html=await fetch(CDN+'index.html',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Could not load the V5 interface.');return r.text();});
     const parsed=new DOMParser().parseFromString(html,'text/html');
@@ -68,21 +67,42 @@
       note.className='v5-source-note';
       note.id='v5StorageStatus';
       note.textContent=usingShadow
-        ? `V5 saved archive loaded · ${shadow.length} records · original archive protected`
-        : `V5 shadow initialized from ${original.length} protected original records`;
+        ? `V5 saved archive available · ${shadow.length} records · testing interaction…`
+        : `V5 shadow initialized from ${original.length} protected original records · testing interaction…`;
       fieldNote.before(note);
     }
 
-    await loadScript('./data.js?v5static=2');
-    await loadScript('./v5-storage-shim.js?v5static=2');
-    await loadScript(CDN+'app.js');
+    await loadScript('./data.js?v5tap=1');
+    await loadScript('./v5-storage-shim.js?v5tap=1');
 
-    setTimeout(()=>{
-      const del=document.getElementById('deleteSpecimenBtn');
-      if(del){del.disabled=true;del.title='Deletion is disabled while V5 is in protected preview mode.';del.textContent='Delete disabled in preview';}
-    },100);
+    const appCode=await fetch(CDN+'app.js',{cache:'no-store'}).then(async r=>{
+      if(!r.ok) throw new Error(`Could not fetch V5 app code (${r.status}).`);
+      return r.text();
+    });
+    try{
+      (new Function(appCode))();
+    }catch(startErr){
+      throw new Error(`V5 app startup error: ${startErr && startErr.message ? startErr.message : startErr}`);
+    }
+
+    await new Promise(resolve=>setTimeout(resolve,80));
+    const identifyButton=document.querySelector('.nav [data-go="identify"]')||document.querySelector('[data-go="identify"]');
+    const identifyScreen=document.querySelector('[data-screen="identify"]');
+    const homeButton=document.querySelector('.nav [data-go="home"]')||document.querySelector('[data-go="home"]');
+    if(!identifyButton||!identifyScreen||!homeButton) throw new Error('V5 interaction controls were not found after startup.');
+    identifyButton.click();
+    await new Promise(resolve=>setTimeout(resolve,0));
+    const interactionWorked=identifyScreen.classList.contains('active');
+    homeButton.click();
+    if(!interactionWorked) throw new Error('V5 loaded visually, but its click handlers did not attach.');
+
+    const status=document.getElementById('v5StorageStatus');
+    if(status) status.textContent=`V5 interactive ✓ · ${original.length} protected original records · changes save only to V5 shadow`;
+
+    const del=document.getElementById('deleteSpecimenBtn');
+    if(del){del.disabled=true;del.title='Deletion is disabled while V5 is in protected preview mode.';del.textContent='Delete disabled in preview';}
   }catch(err){
-    document.body.innerHTML=`<div id="v5boot"><div class="v5card"><h1>V5 did not open</h1><p>${String(err?.message||err)}</p><p>Your original archive was not modified.</p><a href="./recover.html">Check original archive</a><a href="./">Return to stable Lakeglass</a></div></div>`;
+    document.body.innerHTML=`<div id="v5boot"><div class="v5card"><h1>V5 startup stopped</h1><p>${String(err&&err.message||err)}</p><p>Your original archive was not modified.</p><a href="./recover.html">Check original archive</a><a href="./">Return to stable Lakeglass</a></div></div>`;
   }
 })();
 </script>
