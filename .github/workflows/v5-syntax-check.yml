@@ -5,7 +5,7 @@ on:
       - '.github/workflows/v5-syntax-check.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -13,7 +13,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Check archived V5 JavaScript
+      - name: Build corrected V5 snapshot
         run: |
-          git show 75562c0a67c7fae5f86fe164a7865ce0f21a5a75:app.js > /tmp/v5-app.js
-          node --check /tmp/v5-app.js
+          git show 75562c0a67c7fae5f86fe164a7865ce0f21a5a75:app.js > v5-app.js
+          git show 75562c0a67c7fae5f86fe164a7865ce0f21a5a75:index.html > v5-shell.html
+          git show 75562c0a67c7fae5f86fe164a7865ce0f21a5a75:data.js > v5-data.js
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('v5-app.js')
+          s=p.read_text()
+          bad="else if(sort==='beach') rows.sort((a,b)=>String(specimenBeach(a)||'').localeCompare(String(specimenBeach(b)||''));"
+          good="else if(sort==='beach') rows.sort((a,b)=>String(specimenBeach(a)||'').localeCompare(String(specimenBeach(b)||'')));"
+          if bad not in s:
+              raise SystemExit('Expected broken beach-sort line was not found')
+          p.write_text(s.replace(bad,good,1))
+          PY
+          node --check v5-app.js
+          node --check v5-data.js
+      - name: Commit corrected V5 files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v5-app.js v5-shell.html v5-data.js
+          git commit -m "Add syntax-checked V5 snapshot files"
+          git push
