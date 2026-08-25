@@ -1,609 +1,768 @@
-(()=>{
+(async()=>{
   const root=document.getElementById('lake-glass-mockup');
-  if(!root||!window.LAKEGLASS_DATA) return;
+  if(!root||root.dataset.init==='1') return;
+  root.dataset.init='1';
+
+  if(!window.LAKEGLASS_DATA){
+    await new Promise((resolve,reject)=>{
+      const s=document.createElement('script');
+      s.src='data.js';
+      s.onload=resolve;
+      s.onerror=reject;
+      document.head.appendChild(s);
+    });
+  }
 
   const {GLASS_COLORS,REGIONS}=window.LAKEGLASS_DATA;
-  const LOGIC_VERSION='2026.08.24.3';
-  const ARCHIVE_DB='lakeglass-archive';
-  const ARCHIVE_STORE='collection';
-  const LEGACY_DEMO_IDS=new Set(['LM-042','LM-041','LM-040','LM-039']);
-  const ACCESSION_CODES={
-    white:'CLEAR',brown:'AMBER',aqua:'AQUA',seafoam:'SEAFOAM',green:'GREEN',olive:'OLIVE',lime:'LIME',
-    cobalt:'COBALT',darkaqua:'DARKAQUA',teal:'TEAL',milkglass:'MILK',lavender:'LAVENDER',pink:'PINK',
-    purple:'PURPLE',gray:'GRAY',yellow:'YELLOW',opalescent:'OPALESCENT',canary:'CANARY',black:'BLACK',
-    red:'RED',orange:'ORANGE',slag:'SLAG',unclassified:'UNC'
-  };
-
-  const state={
-    region:'chicago',color:'aqua',thickness:'thin',form:'flat',opacity:'transparent',mark:'smooth',
-    diagnosticKey:null,diagnostic:null,diagnosticText:'',datingAnswer:null
-  };
-  const savedSpecimens=[];
-  const accessionCounters={};
-  const archiveMeta={schemaVersion:5,revision:0,lastExportAt:null,lastExportCount:0,lastExportRevision:0};
-  let currentReading=null;
-  let activeDetailId=null;
-  let reanalysisId=null;
-
+  const state={region:'chicago',color:'aqua',thickness:'thin',form:'curved',opacity:'transparent',mark:'smooth',diagnostic:null,diagnosticKey:null};
   const screens=[...root.querySelectorAll('.screen')];
   const navButtons=[...root.querySelectorAll('.nav button')];
 
   function show(name){
     screens.forEach(s=>s.classList.toggle('active',s.dataset.screen===name));
     navButtons.forEach(b=>b.classList.toggle('active',b.dataset.go===name));
-    if(name==='collection') renderCollection();
-    window.scrollTo({top:0,behavior:'instant'});
   }
 
-  root.addEventListener('click',event=>{
-    const go=event.target.closest('[data-go]');
-    if(go){
-      if(go.closest('.hero-find')&&go.dataset.go==='identify') resetIdentification();
-      show(go.dataset.go);
-    }
+  root.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>show(btn.dataset.go)));
+
+  const flatChoice=root.querySelector('[data-group="form"] [data-value="flat"]');
+  if(flatChoice) flatChoice.innerHTML='Small flat fragment<small>curvature may be lost; source unresolved</small>';
+
+  const colorChoices=root.querySelector('#colorChoices');
+  GLASS_COLORS.forEach(c=>{
+    const btn=document.createElement('button');
+    btn.className='swatch'+(c.id==='aqua'?' selected':'');
+    btn.type='button';
+    btn.dataset.value=c.id;
+    btn.innerHTML=`<span class="swatch-dot" style="background:${c.hex}"></span><span>${c.name}</span>`;
+    btn.addEventListener('click',()=>{
+      state.color=c.id;
+      colorChoices.querySelectorAll('.swatch').forEach(x=>x.classList.remove('selected'));
+      btn.classList.add('selected');
+      renderDiagnostic();
+    });
+    colorChoices.appendChild(btn);
   });
 
-  const specimenMetric=root.querySelector('#specimenMetric');
-  specimenMetric?.addEventListener('click',()=>show('collection'));
-  specimenMetric?.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show('collection');}});
+  root.querySelectorAll('[data-group]').forEach(group=>{
+    group.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>{
+      state[group.dataset.group]=btn.dataset.value;
+      group.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));
+      btn.classList.add('selected');
+      renderDiagnostic();
+    }));
+  });
 
-  function colorById(id){return GLASS_COLORS.find(c=>c.id===id)||GLASS_COLORS.find(c=>c.id==='aqua')||GLASS_COLORS[0];}
-  function regionById(id){return REGIONS[id]||REGIONS.unsure;}
-  function accessionCodeFor(colorId){return ACCESSION_CODES[colorId]||'UNC';}
+  function getDiagnosticConfig(){
+    if(state.mark==='letters') return {key:'embossing',question:'What kind of mark survives?',help:'Even a partial mark can be more useful than color.',options:[['letters','Letters or a word'],['numbers','Numbers only'],['symbol','Symbol or maker mark'],['unclear','Too partial to tell']]};
+    if(state.form==='rim'||state.form==='neck') return {key:'seam',question:'What does the mold seam do near the finish?',help:'The seam-to-finish relationship can help separate mouth-blown from machine-made manufacture.',options:[['through','Continues through the lip / finish'],['stops','Stops below the lip / finish'],['noseam','No seam visible'],['unclear','Hard to tell']]};
+    if(state.form==='base') return {key:'base',question:'What is visible on the base?',help:'Base scars, rings, and embossing are especially useful manufacturing clues.',options:[['pontil','Rough or polished circular scar'],['machine','Smooth concentric machine ring'],['embossed','Letters, numbers, or maker mark'],['plain','No obvious feature'],['unclear','Hard to tell']]};
+    if(state.color==='lavender') return {key:'manganese',question:'How does the lavender color appear?',help:'A pale or uneven lavender cast can support solarized manganese-decolorized glass. Deep, even purple may have been intentionally colored.',options:[['solarized','Pale / uneven lavender cast'],['deep','Deep, even purple throughout'],['unclear','Hard to tell']]};
+    if(state.color==='black') return {key:'backlight',question:'What color appears under strong backlight?',help:'Most “black” beach glass is actually a very deep color.',options:[['olive','Olive / green'],['brown','Brown / amber'],['bluepurple','Blue / purple'],['black','Still appears black'],['unclear','Hard to tell']]};
+    if(state.color==='milkglass') return {key:'milk',question:'Does light pass through the piece?',help:'True milk glass is opaque rather than simply heavily frosted.',options:[['opaque','No light passes through'],['soft','Only a soft glow passes through'],['clear','Light passes clearly through'],['unclear','Hard to tell']]};
+    if(state.color==='slag') return {key:'slag',question:'Does it look glassy or stone-like?',help:'Industrial slag often has inclusions, irregular texture, or a rock-like mass rather than vessel geometry.',options:[['stone','Stone-like with inclusions'],['glassy','Smooth glassy mass'],['vessel','Curved like a vessel wall'],['unclear','Hard to tell']]};
+    return null;
+  }
 
-  function initColorChoices(){
-    const wrap=root.querySelector('#colorChoices');
+  function renderDiagnostic(){
+    const group=root.querySelector('#diagnosticGroup');
+    const config=getDiagnosticConfig();
+    if(!config){
+      group.hidden=true;
+      state.diagnostic=null;
+      state.diagnosticKey=null;
+      return;
+    }
+    group.hidden=false;
+    if(state.diagnosticKey!==config.key){
+      state.diagnostic=null;
+      state.diagnosticKey=config.key;
+    }
+    root.querySelector('#diagnosticQuestion').textContent=config.question;
+    root.querySelector('#diagnosticHelp').textContent=config.help;
+    const wrap=root.querySelector('#diagnosticChoices');
     wrap.innerHTML='';
-    GLASS_COLORS.forEach(c=>{
+    config.options.forEach(([value,label])=>{
       const btn=document.createElement('button');
-      btn.className='swatch'+(c.id===state.color?' selected':'');
       btn.type='button';
-      btn.dataset.value=c.id;
-      btn.innerHTML=`<span class="swatch-dot" style="background:${c.hex}"></span><span>${c.name}</span>`;
+      btn.className='choice'+(state.diagnostic===value?' selected':'');
+      btn.dataset.value=value;
+      btn.textContent=label;
       btn.addEventListener('click',()=>{
-        state.color=c.id;
-        wrap.querySelectorAll('.swatch').forEach(x=>x.classList.remove('selected'));
+        state.diagnostic=value;
+        wrap.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));
         btn.classList.add('selected');
-        state.diagnostic=null;state.diagnosticKey=null;state.diagnosticText='';state.datingAnswer=null;
-        renderDynamicQuestions();
       });
       wrap.appendChild(btn);
     });
   }
 
-  root.querySelectorAll('[data-group]').forEach(group=>{
-    group.querySelectorAll('.choice').forEach(btn=>btn.addEventListener('click',()=>{
-      group.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));
-      btn.classList.add('selected');
-      state[group.dataset.group]=btn.dataset.value;
-      if(group.dataset.group==='form'||group.dataset.group==='mark'){
-        state.diagnostic=null;state.diagnosticKey=null;state.diagnosticText='';
-      }
-      renderDynamicQuestions();
-    }));
-  });
-
-  function resetIdentification(){
-    Object.assign(state,{region:'chicago',color:'aqua',thickness:'thin',form:'flat',opacity:'transparent',mark:'smooth',diagnosticKey:null,diagnostic:null,diagnosticText:'',datingAnswer:null});
-    reanalysisId=null;
-    currentReading=null;
-    root.querySelector('#identifyEyebrow').textContent='Field identification';
-    root.querySelector('#identifyQuestion').textContent='Tell us what the lake gave you.';
-    root.querySelector('#analyzeBtn').textContent='Analyze specimen →';
-    root.querySelector('#saveSpecimenBtn').textContent='Save to collection →';
-    root.querySelector('#foundAt').value='';
-    root.querySelector('#foundDate').value='';
-    root.querySelector('#collectorNote').value='';
-    setChoice('region','chicago');setChoice('thickness','thin');setChoice('form','flat');setChoice('opacity','transparent');setChoice('mark','smooth');
-    initColorChoices();
-    renderDynamicQuestions();
-  }
-
-  function setChoice(group,value){
-    const wrap=root.querySelector(`[data-group="${group}"]`);
-    if(!wrap) return;
-    wrap.querySelectorAll('.choice').forEach(x=>x.classList.toggle('selected',x.dataset.value===value));
-    state[group]=value||null;
-  }
-
-  function selectColor(id){
-    state.color=id||'aqua';
-    root.querySelectorAll('#colorChoices .swatch').forEach(x=>x.classList.toggle('selected',x.dataset.value===state.color));
-  }
-
-  function diagnosticConfig(){
-    if(state.mark==='letters') return {key:'embossing',question:'What survives in the mark?',help:'Transcribe exactly what you can see, even if incomplete.',options:[['letters','Letters / word'],['numbers','Numbers / date code'],['symbol','Logo / symbol'],['maker','Maker mark or base code'],['unclear','Too partial to classify']]};
-    if(state.mark==='vents') return {key:'vents',question:'How are the vent marks arranged?',help:'Small mold-formed vent dots can help date mouth-blown production.',options:[['single','One simple pair / very few vents'],['multiple','Multiple vents around body / embossing'],['unclear','Hard to tell']]};
-    if(state.form==='rim'||state.form==='neck') return {key:'finish',question:'What survives at the finish or lip?',help:'Finish construction and seam behavior can be highly chronological.',options:[['applied','Applied finish / added glass at lip'],['tooled','Tooled finish / shaped after blowing'],['seamthrough','Mold seam continues through finish'],['crown','Crown-cap style finish'],['screw','Screw-thread finish'],['unclear','Hard to tell']]};
-    if(state.form==='base') return {key:'base',question:'What is visible on the base or heel?',help:'Pontils, Owens scars, mold seams, and marks can strongly narrow manufacture.',options:[['pontil','Rough / polished pontil scar'],['owens','Feathered Owens suction scar'],['seamedge','Mold seam within outer base edge'],['machine','Concentric / machine-made base feature'],['embossed','Embossed maker / plant / date mark'],['stipple','Stippled / textured base'],['plain','No obvious feature'],['unclear','Hard to tell']]};
-    if(state.color==='lavender') return {key:'manganese',question:'How does the lavender color appear?',help:'A pale or uneven cast can support solarized manganese-decolorized glass; deep even purple may be intentional.',options:[['solarized','Pale / uneven lavender cast'],['deep','Deep, even purple throughout'],['unclear','Hard to tell']]};
-    if(state.color==='black') return {key:'backlight',question:'What color appears under strong backlight?',help:'Most “black” glass is actually a very deep underlying color.',options:[['olive','Olive / green'],['brown','Brown / amber'],['bluepurple','Blue / purple'],['black','Still appears black'],['unclear','Hard to tell']]};
-    if(state.color==='milkglass') return {key:'milk',question:'Does light pass through?',help:'True milk glass is opaque rather than simply heavily frosted clear glass.',options:[['opaque','No light passes through'],['soft','Only a soft glow passes'],['clear','Light passes clearly'],['unclear','Hard to tell']]};
-    if(state.color==='slag') return {key:'slag',question:'Does it look glassy or stone-like?',help:'Industrial slag often has inclusions or irregular rock-like mass rather than vessel geometry.',options:[['stone','Stone-like with inclusions'],['glassy','Smooth glassy mass'],['vessel','Clearly vessel-like curvature'],['unclear','Hard to tell']]};
-    return null;
-  }
-
-  const DATING_QUESTIONS={
-    white:{question:'Against white paper in daylight, does the clear glass have a faint tint?',help:'Subtle decolorizer tints can carry more dating value than “clear” alone.',options:[['amethyst','Faint lavender / amethyst'],['straw','Faint straw / honey'],['gray','Faint gray'],['colorless','No obvious tint'],['unclear','Hard to tell']]},
-    yellow:{question:'Is the yellow only a faint straw tint in otherwise clear glass?',help:'A straw cast can reflect selenium/arsenic decolorization rather than intentionally yellow glass.',options:[['straw','Mostly clear with straw tint'],['trueyellow','Distinctly yellow glass'],['unclear','Hard to tell']]},
-    gray:{question:'Is this essentially colorless glass with only a faint gray cast?',help:'A subtle gray tint in otherwise colorless bottle glass has limited chronological value.',options:[['tint','Faint gray tint'],['truegray','Clearly gray glass'],['unclear','Hard to tell']]},
-    canary:{question:'If you have a UV light, does it fluoresce vivid green?',help:'Strong green fluorescence supports uranium-colored glass. Not tested is fine.',options:[['uvyes','Yes · vivid green'],['uvno','No fluorescence'],['untested','Not tested']]}
+  const ACCESSION_CODES={
+    white:'CLEAR',brown:'AMBER',aqua:'AQUA',seafoam:'SEAFOAM',green:'GREEN',olive:'OLIVE',lime:'LIME',
+    cobalt:'COBALT',darkaqua:'DARKAQUA',teal:'TEAL',milkglass:'MILK',lavender:'LAVENDER',pink:'PINK',
+    purple:'PURPLE',gray:'GRAY',yellow:'YELLOW',opalescent:'OPALESCENT',canary:'CANARY',black:'BLACK',
+    red:'RED',orange:'ORANGE',slag:'SLAG',unclassified:'UNC'
   };
+  const LEGACY_DEMO_IDS=new Set(['LM-042','LM-041','LM-040','LM-039']);
+  const savedSpecimens=[];
+  const accessionCounters={};
+  const ARCHIVE_DB='lakeglass-archive';
+  const ARCHIVE_STORE='collection';
+  let currentSpecimenCode='';
 
-  function renderDynamicQuestions(){renderDiagnostic();renderDatingQuestion();}
-
-  function renderDiagnostic(){
-    const group=root.querySelector('#diagnosticGroup');
-    const config=diagnosticConfig();
-    if(!config){group.hidden=true;state.diagnosticKey=null;state.diagnostic=null;state.diagnosticText='';root.querySelector('#diagnosticTextInput').hidden=true;return;}
-    if(state.diagnosticKey!==config.key){state.diagnosticKey=config.key;state.diagnostic=null;state.diagnosticText='';}
-    group.hidden=false;
-    root.querySelector('#diagnosticQuestion').textContent=config.question;
-    root.querySelector('#diagnosticHelp').textContent=config.help;
-    const choices=root.querySelector('#diagnosticChoices');
-    choices.innerHTML='';
-    config.options.forEach(([value,label])=>{
-      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.diagnostic===value?' selected':'');btn.dataset.value=value;btn.textContent=label;
-      btn.addEventListener('click',()=>{state.diagnostic=value;choices.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');updateDiagnosticTextVisibility();});
-      choices.appendChild(btn);
-    });
-    const input=root.querySelector('#diagnosticTextInput');
-    input.value=state.diagnosticText||'';
-    input.oninput=()=>{state.diagnosticText=input.value.trim();};
-    updateDiagnosticTextVisibility();
-  }
-
-  function updateDiagnosticTextVisibility(){
-    const input=root.querySelector('#diagnosticTextInput');
-    const wantsText=state.diagnosticKey==='embossing'&&state.diagnostic&&state.diagnostic!=='unclear';
-    input.hidden=!wantsText;
-  }
-
-  function renderDatingQuestion(){
-    const group=root.querySelector('#datingClueGroup');
-    const config=DATING_QUESTIONS[state.color];
-    if(!config){group.hidden=true;state.datingAnswer=null;return;}
-    group.hidden=false;
-    root.querySelector('#datingQuestion').textContent=config.question;
-    root.querySelector('#datingHelp').textContent=config.help;
-    const choices=root.querySelector('#datingChoices');choices.innerHTML='';
-    config.options.forEach(([value,label])=>{
-      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.datingAnswer===value?' selected':'');btn.dataset.value=value;btn.textContent=label;
-      btn.addEventListener('click',()=>{state.datingAnswer=value;choices.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');});
-      choices.appendChild(btn);
-    });
+  function accessionCodeFor(colorId){
+    return ACCESSION_CODES[colorId]||'UNC';
   }
 
   function inferColorId(d){
-    const requested=String(d?.accessionColor||d?.observations?.colorId||d?.colorId||'');
+    const requested=String(d?.accessionColor||d?.colorId||'');
     if(GLASS_COLORS.some(c=>c.id===requested)) return requested;
-    const hex=String(d?.color||'').toLowerCase();
-    const byHex=GLASS_COLORS.find(c=>String(c.hex||'').toLowerCase()===hex);if(byHex) return byHex.id;
-    const name=String(d?.name||'').toLowerCase();
-    if(name.includes('clear')||name.includes('white')) return 'white';if(name.includes('amber')||name.includes('brown')) return 'brown';if(name.includes('aqua')) return 'aqua';if(name.includes('green')) return 'green';if(name.includes('lavender')||name.includes('amethyst')) return 'lavender';
+    const hex=String(d?.color||'').trim().toLowerCase();
+    const byHex=GLASS_COLORS.find(c=>String(c.hex||'').toLowerCase()===hex);
+    if(byHex) return byHex.id;
+    const name=String(d?.name||'').trim().toLowerCase();
+    const byName=GLASS_COLORS.find(c=>c.name.toLowerCase()===name);
+    if(byName) return byName.id;
+    if(name.includes('clear')||name.includes('white')) return 'white';
+    if(name.includes('amber')||name.includes('brown')) return 'brown';
+    if(name.includes('aqua')&&!name.includes('dark')) return 'aqua';
+    if(name.includes('green')&&!name.includes('olive')&&!name.includes('lime')) return 'green';
     return 'unclassified';
   }
 
   function accessionNumberFromId(id,colorId){
-    const match=String(id||'').match(/^LM\.([A-Z0-9]+)\.(\d+)$/);if(!match||match[1]!==accessionCodeFor(colorId)) return null;
-    const n=Number(match[2]);return Number.isInteger(n)&&n>0?n:null;
+    const match=String(id||'').match(/^LM\.([A-Z0-9]+)\.(\d+)$/);
+    if(!match||match[1]!==accessionCodeFor(colorId)) return null;
+    const n=Number(match[2]);
+    return Number.isInteger(n)&&n>0?n:null;
   }
 
-  function legacyRegionFromProvenance(text){
-    const p=String(text||'').toLowerCase();if(p.includes('chicago')) return 'chicago';if(p.includes('milwaukee')) return 'milwaukee';if(p.includes('michigan')) return 'michigan';return 'unsure';
-  }
-
-  function legacyFoundAt(text){
-    const first=String(text||'').split(' · ')[0].trim();
-    if(!first||['Not recorded','Chicago area','Milwaukee area','Michigan shoreline','Lake Michigan','General Lake Michigan'].includes(first)) return '';
-    return first;
-  }
-
-  function numberFromRarity(value,colorId){
-    const n=Number(String(value||'').match(/\d+/)?.[0]);return Number.isFinite(n)&&n>0?n:colorById(colorId).rarity;
-  }
-
-  function confidenceFromLegacyPeriod(period){
-    const p=String(period||'').toLowerCase();if(p.includes('pontil')||p.includes('owens')||p.includes('diagnostic')) return 'Diagnostic';if(p.match(/\d{4}.*\d{4}/)) return 'Moderate';return 'Broad';
-  }
-
-  function timestampFromKey(key){const m=String(key||'').match(/(\d{12,})/);return m?new Date(Number(m[1])).toISOString():null;}
-
-  function normalizeRecord(raw){
-    const d={...raw};
-    const colorId=inferColorId(d);
-    const existingObs=d.observations&&typeof d.observations==='object'?{...d.observations}:null;
-    const observations=existingObs||{
-      schema:2,legacy:true,colorId,regionId:legacyRegionFromProvenance(d.provenance),thickness:null,form:null,opacity:null,mark:null,
-      diagnosticKey:null,diagnostic:null,diagnosticText:'',datingAnswer:null,foundAt:legacyFoundAt(d.provenance),foundDate:null,collectorNote:''
-    };
-    observations.schema=2;observations.colorId=observations.colorId||colorId;observations.regionId=observations.regionId||legacyRegionFromProvenance(d.provenance);
-    if(existingObs&&!('legacy' in observations)) observations.legacy=false;
-
-    const interpretation=d.interpretation&&typeof d.interpretation==='object'?{...d.interpretation}:{
-      logicVersion:'legacy',analyzedAt:d.lastAnalyzedAt||d.accessionedAt||timestampFromKey(d.key),source:d.source||'Unresolved',period:d.period||'Broad date only',
-      datingConfidence:confidenceFromLegacyPeriod(d.period),colorRarity:numberFromRarity(d.rarity,colorId),formDistinctiveness:null,historyInterest:null,strength:'Legacy reading',
-      evidence:d.notes?[String(d.notes)]:[],cautions:[],datingBasis:'Migrated from an earlier Lakeglass accession; the original physical selections were not stored separately.'
-    };
-    interpretation.logicVersion=interpretation.logicVersion||'legacy';
-    interpretation.colorRarity=Number(interpretation.colorRarity)||numberFromRarity(d.rarity,colorId);
-
-    return {
-      ...d,
-      key:String(d.key||`saved-${Date.now()}-${Math.random().toString(36).slice(2,7)}`),
-      accessionColor:d.accessionColor||colorId,
-      observations,
-      interpretation,
-      interpretationHistory:Array.isArray(d.interpretationHistory)?d.interpretationHistory:[],
-      accessionedAt:d.accessionedAt||timestampFromKey(d.key)||null,
-      lastAnalyzedAt:d.lastAnalyzedAt||interpretation.analyzedAt||null,
-      name:d.name||colorById(observations.colorId).name,
-      color:d.color||colorById(observations.colorId).hex,
-      provenance:d.provenance||provenanceText(observations),
-      period:interpretation.period||d.period||'Broad date only',
-      rarity:`${interpretation.colorRarity} / 10`,
-      source:interpretation.source||d.source||'Unresolved',
-      notes:d.notes||interpretation.evidence?.join(' ')||'No interpretation notes recorded.'
-    };
-  }
-
-  function normalizeRows(rows){
-    const clean=(Array.isArray(rows)?rows:[]).filter(d=>d&&typeof d==='object'&&!LEGACY_DEMO_IDS.has(String(d.id||''))).map(normalizeRecord);
-    const maxima={};const used={};
-    clean.forEach(d=>{
-      const c=d.accessionColor||inferColorId(d);d.accessionColor=c;
-      const n=Number(d.accessionNumber)||accessionNumberFromId(d.id,c);
-      if(n&&(!used[c]||!used[c].has(n))){if(!used[c]) used[c]=new Set();used[c].add(n);d.accessionNumber=n;d.id=`LM.${accessionCodeFor(c)}.${String(n).padStart(3,'0')}`;maxima[c]=Math.max(maxima[c]||0,n);}else d.accessionNumber=null;
+  function mergeCountersFromSpecimens(){
+    savedSpecimens.forEach(d=>{
+      const colorId=inferColorId(d);
+      const n=Number(d.accessionNumber)||accessionNumberFromId(d.id,colorId)||0;
+      if(n>0) accessionCounters[colorId]=Math.max(Number(accessionCounters[colorId])||0,n);
     });
-    [...clean].reverse().forEach(d=>{if(d.accessionNumber)return;const c=d.accessionColor||'unclassified';const n=(maxima[c]||0)+1;maxima[c]=n;d.accessionNumber=n;d.id=`LM.${accessionCodeFor(c)}.${String(n).padStart(3,'0')}`;});
-    return clean;
-  }
-
-  function mergeCounters(){
-    savedSpecimens.forEach(d=>{const c=d.accessionColor||inferColorId(d);const n=Number(d.accessionNumber)||accessionNumberFromId(d.id,c)||0;if(n>0) accessionCounters[c]=Math.max(Number(accessionCounters[c])||0,n);});
   }
 
   function nextAccession(colorId){
-    let max=Number(accessionCounters[colorId])||0;savedSpecimens.forEach(d=>{if(d.accessionColor!==colorId)return;max=Math.max(max,Number(d.accessionNumber)||0);});
-    const number=max+1;return {number,id:`LM.${accessionCodeFor(colorId)}.${String(number).padStart(3,'0')}`};
+    let max=Number(accessionCounters[colorId])||0;
+    savedSpecimens.forEach(d=>{
+      const dColor=inferColorId(d);
+      if(dColor!==colorId) return;
+      const n=Number(d.accessionNumber)||accessionNumberFromId(d.id,dColor)||0;
+      if(n>max) max=n;
+    });
+    const number=max+1;
+    return {number,id:`LM.${accessionCodeFor(colorId)}.${String(number).padStart(3,'0')}`};
   }
 
-  function openArchiveDb(){
-    return new Promise((resolve,reject)=>{if(!('indexedDB' in window)){resolve(null);return;}const req=indexedDB.open(ARCHIVE_DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(ARCHIVE_STORE)) req.result.createObjectStore(ARCHIVE_STORE);};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+  function cleanArchiveRows(rows){
+    if(!Array.isArray(rows)) return [];
+    return rows.filter(d=>d&&typeof d==='object'&&!LEGACY_DEMO_IDS.has(String(d.id||''))).map(d=>({...d}));
   }
 
-  async function persistArchive(){
-    try{const db=await openArchiveDb();if(!db)return;await new Promise((resolve,reject)=>{const tx=db.transaction(ARCHIVE_STORE,'readwrite');const store=tx.objectStore(ARCHIVE_STORE);store.put(savedSpecimens,'specimens');store.put({...accessionCounters},'accessionCounters');store.put({...archiveMeta},'archiveMeta');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}catch(err){}
+  function normalizeAccessionRows(rows){
+    const clean=cleanArchiveRows(rows);
+    const maxima={};
+    const used={};
+
+    clean.forEach(d=>{
+      const colorId=inferColorId(d);
+      d.accessionColor=colorId;
+      const existing=Number(d.accessionNumber)||accessionNumberFromId(d.id,colorId);
+      if(existing&&(!used[colorId]||!used[colorId].has(existing))){
+        if(!used[colorId]) used[colorId]=new Set();
+        used[colorId].add(existing);
+        d.accessionNumber=existing;
+        d.id=`LM.${accessionCodeFor(colorId)}.${String(existing).padStart(3,'0')}`;
+        maxima[colorId]=Math.max(maxima[colorId]||0,existing);
+      }else{
+        d.accessionNumber=null;
+      }
+    });
+
+    [...clean].reverse().forEach(d=>{
+      if(d.accessionNumber) return;
+      const colorId=d.accessionColor||'unclassified';
+      const number=(maxima[colorId]||0)+1;
+      maxima[colorId]=number;
+      if(!used[colorId]) used[colorId]=new Set();
+      used[colorId].add(number);
+      d.accessionNumber=number;
+      d.id=`LM.${accessionCodeFor(colorId)}.${String(number).padStart(3,'0')}`;
+    });
+
+    return clean;
   }
 
-  function markArchiveChanged(){archiveMeta.revision=(Number(archiveMeta.revision)||0)+1;archiveMeta.schemaVersion=5;}
-
-  async function restoreArchive(){
-    try{
-      const db=await openArchiveDb();if(!db){renderAll();return;}
-      const restored=await new Promise((resolve,reject)=>{const tx=db.transaction(ARCHIVE_STORE,'readonly');const store=tx.objectStore(ARCHIVE_STORE);const a=store.get('specimens'),b=store.get('accessionCounters'),c=store.get('archiveMeta');tx.oncomplete=()=>resolve({rows:a.result,counters:b.result,meta:c.result});tx.onerror=()=>reject(tx.error);});db.close();
-      savedSpecimens.splice(0,savedSpecimens.length,...normalizeRows(restored.rows));
-      Object.keys(accessionCounters).forEach(k=>delete accessionCounters[k]);
-      if(restored.counters&&typeof restored.counters==='object') Object.entries(restored.counters).forEach(([k,v])=>{const n=Number(v);if(Number.isInteger(n)&&n>0) accessionCounters[k]=n;});
-      mergeCounters();
-      if(restored.meta&&typeof restored.meta==='object') Object.assign(archiveMeta,restored.meta,{schemaVersion:5});
-      await persistArchive();renderAll();
-    }catch(err){renderAll();}
+  function rarityLabel(score){
+    if(score<=1) return 'Common color';
+    if(score<=3) return 'Familiar find';
+    if(score<=5) return 'Uncommon color';
+    if(score<=7) return 'Rare find';
+    if(score<=9) return 'Very rare find';
+    return 'Exceptional find';
   }
 
-  function selectedObservation(){
-    return {
-      schema:2,legacy:false,colorId:state.color,regionId:state.region,thickness:state.thickness||null,form:state.form||null,opacity:state.opacity||null,mark:state.mark||null,
-      diagnosticKey:state.diagnosticKey||null,diagnostic:state.diagnostic||null,diagnosticText:(state.diagnosticText||'').trim(),datingAnswer:state.datingAnswer||null,
-      foundAt:root.querySelector('#foundAt').value.trim(),foundDate:root.querySelector('#foundDate').value||null,collectorNote:root.querySelector('#collectorNote').value.trim()
-    };
+  function shortThickness(value){
+    return value==='thin'?'Thin glass fragment':value==='medium'?'Medium-weight glass':'Thick / heavy glass';
   }
 
-  function provenanceText(obs){const region=regionById(obs?.regionId).label;return obs?.foundAt?`${obs.foundAt} · ${region}`:region;}
+  function shortMark(value){
+    if(value==='letters') return 'Embossed / marked';
+    if(value==='ripple') return 'Rippled flat-glass clue';
+    if(value==='rough') return 'Lighter weathering';
+    return 'Heavily frosted';
+  }
 
-  function shortThickness(v){return ({thin:'Thin glass fragment',medium:'Medium-weight glass',thick:'Thick / heavy glass',unknown:'Thickness unresolved'})[v]||'Not recorded';}
-  function shortForm(v){return ({flat:'Small flat fragment',curved:'Clearly curved vessel wall',rim:'Rim / lip / finish',base:'Base / heel',neck:'Bottle neck',unknown:'Form unresolved'})[v]||'Not recorded';}
-  function shortMark(v){return ({smooth:'Smooth and frosted',letters:'Embossed / marked',vents:'Molded vent dots',ripple:'Deliberately wavy / rippled',rough:'Sharper / glossier surface'})[v]||'Not recorded';}
-  function formDistinctiveness(v){return ({flat:1,unknown:1,curved:3,rim:8,base:9,neck:8})[v]||1;}
-  function rarityLabel(n){if(n<=2)return 'Very common color';if(n<=4)return 'Familiar color';if(n<=6)return 'Uncommon color';if(n<=8)return 'Rare color';if(n===9)return 'Very rare color';return 'Exceptional color';}
+  function shortForm(value){
+    return ({curved:'Curved vessel wall',flat:'Small flat fragment',rim:'Rim / lip fragment',base:'Base / heel fragment',neck:'Bottle neck',unknown:'Form uncertain'})[value]||'Form uncertain';
+  }
 
-  function diagnosticLabel(obs){
+  function formScore(value){
+    return ({curved:2,flat:1,rim:7,base:6,neck:6,unknown:1})[value]||1;
+  }
+
+  function historyScore(){
+    let score=3;
+    if(state.mark==='letters') score+=4;
+    if(state.form==='rim'||state.form==='base'||state.form==='neck') score+=2;
+    if(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized') score+=3;
+    else if(state.color==='lavender'||state.color==='red'||state.color==='slag'||state.color==='black') score+=1;
+    return Math.min(10,score);
+  }
+
+  function evaluateSpecimen(color){
+    const scores={bottle:0,jar:0,flat:0,decorative:0,slag:0,insulator:0};
+    const evidence=[];
+    const cautions=[];
+    const add=(type,points,reason)=>{scores[type]+=points;if(reason)evidence.push(reason);};
+
+    if(state.form==='curved'){add('bottle',4,'Curved vessel wall strongly supports container glass.');add('jar',1);}
+    if(state.form==='flat') evidence.push('Flatness is weak evidence on a small shoreline shard because tumbling and breakage can erase the original curvature.');
+    if(state.form==='rim'){add('bottle',5,'A rim or lip is a diagnostic vessel feature.');add('jar',2);}
+    if(state.form==='base'){add('bottle',3,'A base or heel supports a vessel identification.');add('jar',3);}
+    if(state.form==='neck'){add('bottle',5,'A neck profile strongly supports a bottle.');}
+
+    if(state.mark==='letters'){add('bottle',3,'Embossing is a high-value manufacturing clue.');add('jar',2);}
+    if(state.mark==='ripple'){add('flat',5,'A deliberately rippled or wavy surface is meaningful evidence for older flat glass.');}
+    if(state.mark==='smooth') evidence.push('Even frosting supports prolonged shoreline weathering.');
+    if(state.mark==='rough') evidence.push('Remaining gloss or sharpness suggests lighter shoreline weathering.');
+
+    if(state.thickness==='thin'){add('bottle',1,'Thin glass is compatible with bottle-wall glass, but thickness alone is not diagnostic.');}
+    if(state.thickness==='medium'){add('jar',2,'Medium thickness fits heavier containers or tableware.');add('bottle',1);}
+    if(state.thickness==='thick'){add('slag',2,'Heavy thickness raises industrial-slag potential.');add('insulator',2,'Heavy thickness can fit utility or insulator glass.');add('bottle',1);}
+
+    if(state.opacity==='opaque'&&color.id==='milkglass'){add('jar',5,'Opaque white strongly supports milk glass.');add('decorative',2);}
+    if(state.opacity==='opaque'&&color.id==='slag'){add('slag',4,'Opaque or near-opaque material supports an industrial-slag reading.');}
+
+    if(['white','brown','aqua','seafoam','green','olive','lime','darkaqua','teal'].includes(color.id)) add('bottle',2,'The selected color is compatible with historic utility-container glass.');
+    if(color.id==='cobalt'){add('bottle',2,'Cobalt is compatible with medicine and specialty bottles.');add('decorative',2);}
+    if(['pink','purple','gray','yellow','opalescent','canary','red','orange'].includes(color.id)) add('decorative',3,'The color raises the likelihood of decorative or specialty glass.');
+    if(color.id==='lavender'){
+      if(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized') add('bottle',2,'A pale or uneven amethyst cast is compatible with originally colorless manganese-decolorized container glass altered by ultraviolet exposure.');
+      else if(state.diagnosticKey==='manganese'&&state.diagnostic==='deep') add('decorative',3,'Deep, even purple may have been intentionally colored rather than solarized from originally colorless glass.');
+      else evidence.push('Lavender or amethyst can be a chronological clue, but only when solarized manganese-decolorized glass is the better explanation.');
+    }
+    if(color.id==='teal'){add('jar',2,'Teal was also used for utilitarian jars and containers.');add('insulator',1,'Teal appears in historic electrical insulators as well as vessels.');}
+    if(color.id==='darkaqua'){add('insulator',2,'Dark aqua can appear in historic electrical insulators.');add('decorative',1);}
+    if(color.id==='milkglass'){add('jar',3,'Milk glass commonly appears in cosmetic, ointment, and household containers.');}
+    if(color.id==='slag'){add('slag',6,'The selected material profile directly supports industrial slag.');}
+    if(color.id==='black'){add('bottle',2,'Near-black pieces are often very deeply colored bottle glass.');add('slag',1);}
+
+    if(color.id==='slag'&&state.region==='michigan') add('slag',2,'Michigan shoreline context strengthens the slag hypothesis.');
+    if(state.diagnosticKey==='seam'&&state.diagnostic==='through') add('bottle',3,'A mold seam continuing through the finish supports machine-made bottle manufacture.');
+    if(state.diagnosticKey==='seam'&&state.diagnostic==='stops') add('bottle',3,'A seam stopping below the finish supports a mouth-blown manufacture hypothesis.');
+    if(state.diagnosticKey==='base'&&state.diagnostic==='pontil') add('bottle',4,'A circular pontil-type scar is a strong older-manufacture clue.');
+    if(state.diagnosticKey==='base'&&state.diagnostic==='machine') add('bottle',3,'A smooth concentric machine ring supports machine-made manufacture.');
+    if(state.diagnosticKey==='base'&&state.diagnostic==='embossed') add('bottle',4,'Embossing on the base is a strong maker or manufacturing clue.');
+    if(state.diagnosticKey==='embossing'&&state.diagnostic==='letters') add('bottle',3,'Surviving lettering may support maker- or product-level research.');
+    if(state.diagnosticKey==='embossing'&&state.diagnostic==='symbol') add('bottle',2,'A maker symbol can be historically diagnostic even without readable text.');
+    if(state.diagnosticKey==='milk'&&state.diagnostic==='opaque') add('jar',3,'Confirmed opacity strengthens a true milk-glass reading.');
+    if(state.diagnosticKey==='slag'&&state.diagnostic==='stone') add('slag',4,'Stone-like texture and inclusions strongly support industrial slag.');
+
+    if(state.diagnosticKey==='slag'&&state.diagnostic==='vessel') cautions.push('Vessel-like curvature conflicts with an industrial-slag identification.');
+    if(state.diagnosticKey==='milk'&&state.diagnostic==='clear') cautions.push('Clear light transmission conflicts with true milk glass and suggests heavily frosted clear glass instead.');
+    if(color.id==='slag'&&state.form==='curved'&&state.thickness==='thin') cautions.push('Thin curved vessel glass conflicts with an industrial-slag identification.');
+    if(color.id==='milkglass'&&state.opacity!=='opaque') cautions.push('Milk glass is normally opaque; heavily frosted clear glass may be a better match.');
+    if(color.id==='black'&&state.opacity==='transparent') cautions.push('Near-black transparent glass may reveal an underlying olive or amber hue in stronger light.');
+    if(state.form==='flat'&&state.mark!=='ripple') cautions.push('A small flat shard is not enough to call window glass; vessel or tableware curvature may simply be lost in the fragment.');
+    if(color.id==='lavender'&&state.diagnosticKey==='manganese'&&state.diagnostic==='unclear') cautions.push('Lavender may be intentional color or solarized manganese glass; the manganese date range should not be used unless solarization is the better fit.');
+
+    const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+    const [top,second]=ranked;
+    const margin=top[1]-second[1];
+    const diagnostic=(state.form==='rim'||state.form==='base'||state.form==='neck'||state.mark==='letters'||state.mark==='ripple'||(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized'));
+    let strength='Possible';
+    if(top[1]>=8&&margin>=3&&diagnostic) strength='Distinctive match';
+    else if(top[1]>=6&&margin>=2) strength='Strong match';
+    else if(top[1]>=4) strength='Good match';
+
+    const labels={bottle:'Bottle / container glass',jar:'Jar or heavier container',flat:'Flat glass / source unresolved',decorative:'Decorative or specialty glass',slag:'Industrial slag',insulator:'Utility / insulator glass'};
+    return {scores,ranked,topType:top[0],topScore:top[1],secondScore:second[1],label:labels[top[0]],strength,evidence,cautions};
+  }
+
+  function diagnosticLabel(){
     const labels={
-      embossing:{letters:'Readable letters / word',numbers:'Numbers / date code',symbol:'Logo / symbol',maker:'Maker mark / base code',unclear:'Mark unclear'},
-      vents:{single:'One simple pair / few vent marks',multiple:'Multiple vent marks',unclear:'Vent pattern unclear'},
-      finish:{applied:'Applied finish',tooled:'Tooled finish',seamthrough:'Seam continues through finish',crown:'Crown-cap style finish',screw:'Screw-thread finish',unclear:'Finish unclear'},
-      base:{pontil:'Pontil scar',owens:'Owens suction scar',seamedge:'Mold seam within outer base edge',machine:'Machine-made base feature',embossed:'Embossed base mark',stipple:'Stippled / textured base',plain:'Plain base',unclear:'Base feature unclear'},
-      manganese:{solarized:'Pale / uneven solarized lavender',deep:'Deep even purple',unclear:'Lavender origin unclear'},
+      seam:{through:'Seam continues through finish',stops:'Seam stops below finish',noseam:'No seam visible',unclear:'Seam unclear'},
+      base:{pontil:'Circular base scar',machine:'Concentric machine ring',embossed:'Embossed base',plain:'Plain base',unclear:'Base feature unclear'},
+      embossing:{letters:'Readable letters / word',numbers:'Numbers only',symbol:'Symbol / maker mark',unclear:'Partial mark'},
+      manganese:{solarized:'Pale / uneven solarized lavender cast',deep:'Deep even purple · intentional color possible',unclear:'Lavender origin unclear'},
       backlight:{olive:'Backlights olive / green',brown:'Backlights brown / amber',bluepurple:'Backlights blue / purple',black:'Still appears black',unclear:'Backlit color unclear'},
-      milk:{opaque:'Confirmed opaque milk glass',soft:'Soft glow only',clear:'Transmits clear light',unclear:'Opacity clue unclear'},
+      milk:{opaque:'Confirmed opaque',soft:'Soft glow only',clear:'Transmits clear light',unclear:'Opacity unclear'},
       slag:{stone:'Stone-like with inclusions',glassy:'Smooth glassy mass',vessel:'Vessel-like curvature',unclear:'Texture unclear'}
     };
-    let text=obs?.diagnosticKey&&obs?.diagnostic?labels[obs.diagnosticKey]?.[obs.diagnostic]:'No diagnostic feature recorded';
-    if(obs?.diagnosticText) text=`${text} · “${obs.diagnosticText}”`;
-    return text||'No diagnostic feature recorded';
+    return state.diagnosticKey&&state.diagnostic?(labels[state.diagnosticKey]?.[state.diagnostic]||'Diagnostic clue recorded'):'No diagnostic feature recorded';
   }
 
-  function estimatePeriod(obs){
-    const color=obs.colorId;const key=obs.diagnosticKey;const d=obs.diagnostic;const chem=obs.datingAnswer;const place=String(obs.foundAt||'').toLowerCase();
-    const r=(text,confidence,historyInterest,basis)=>({text,confidence,historyInterest,basis});
-
-    if(key==='base'&&d==='pontil') return r('Usually pre-1870s · utilitarian bottles often pre-1865','Diagnostic',10,'A pontil scar is a strong mid-19th-century-or-earlier manufacturing clue on utilitarian bottles.');
-    if(key==='finish'&&d==='applied') return r('Applied finish · typically ca. 1820–1890','Diagnostic',10,'Applied-finish bottles typically date from about 1820 to 1890.');
-    if(key==='finish'&&d==='tooled') return r('Tooled finish · usually ca. 1880s–early 1920s','Strong',9,'Tooled finishes became dominant after about 1890 and largely disappeared during the 1910s to early 1920s.');
-    if(key==='base'&&d==='seamedge') return r('Usually no later than ca. 1890–1895','Strong',9,'Mold seams within the extreme outside base edges generally favor pre-1895 mouth-blown manufacture.');
-    if(key==='vents'&&d==='single') return r('Air-vented mouth-blown glass · often ca. 1885–1895','Strong',8,'Simple early air-vent patterns generally begin in the mid/late 1880s and become common by about 1890.');
-    if(key==='vents'&&d==='multiple') return r('Multiple air vents · often ca. 1905–1920','Strong',9,'Multiple vent marks integrated around the bottle or embossing tend to favor later mouth-blown production.');
-    if(key==='finish'&&d==='seamthrough') return r('Machine-made · usually 20th century, increasingly common after 1905','Strong',9,'A mold seam continuing through the finish strongly supports machine manufacture.');
-    if(key==='base'&&d==='owens') return r('Owens automatic-bottle process · 1905 onward; early 20th century strongly favored','Diagnostic',10,'The feathered Owens suction scar is unique to the Owens automatic-bottle process, introduced commercially in the early 20th century.');
-    if(key==='base'&&d==='machine') return r('Machine-made · generally post-1905; most likely after the mid-1910s','Strong',9,'Machine-made base features strongly favor 20th-century automatic production.');
-    if(key==='finish'&&d==='crown') return r('Crown finish · post-1892; early applied examples ca. 1895–1910','Strong',8,'The crown closure was patented in 1892; early applied crown finishes are documented around 1895–1910.');
-    if(key==='finish'&&d==='screw') return r('Screw-thread finish · broad 20th-century tendency; closure type needed for precision','Moderate',6,'Threaded finishes span many container types and periods, so the surviving closure system matters.');
-    if(key==='embossing'&&d&&d!=='unclear') return r('Maker / product mark present · exact research may narrow the date','Strong',9,'A transcription, logo, plant code, or date code can be more precise than color-based dating.');
-    if(key==='base'&&d==='embossed') return r('Embossed base mark present · maker research may narrow the date','Strong',9,'Base marks can identify manufacturer, plant, mold, or date information.');
-
-    if(color==='lavender'){
-      if(key==='manganese'&&d==='solarized') return r('ca. 1890–1920 probable · some manganese examples continue into the 1930s','Strong',9,'A pale or uneven solarized amethyst cast supports manganese-decolorized colorless glass.');
-      if(key==='manganese'&&d==='deep') return r('If true intentionally purple bottle glass: chiefly 1840s–early 1880s · decorative glass may be later','Moderate',7,'True purple bottle glass and solarized manganese glass have different chronologies.');
-      return r('If solarized manganese glass: ca. 1890–1920 probable','Moderate',7,'Lavender is dateable only when solarization is the better explanation than intentional purple color.');
-    }
-    if(color==='white'){
-      if(chem==='amethyst') return r('ca. 1890–1920 probable · some examples into the 1930s','Strong',9,'A faint amethyst tint supports manganese-decolorized colorless glass.');
-      if(chem==='straw') return r('Usually mid-1910s or later · often ca. 1915–mid-20th century','Strong',8,'A faint straw tint is associated with later colorless glass decolorization and is unlikely much before World War I.');
-      if(chem==='gray') return r('ca. 1915–1925 tendency · exceptions occur','Moderate',7,'A faint gray tint in otherwise colorless bottle glass has limited chronological value.');
-      return r('Colorless glass alone · broad late-19th-century through modern range','Broad',3,'Untinted clear glass spans too many products and periods to date narrowly without manufacturing evidence.');
-    }
-    if(color==='yellow'){
-      if(chem==='straw') return r('Usually mid-1910s or later · often ca. 1915–mid-20th century','Strong',8,'A straw cast in otherwise colorless glass can reflect later decolorization chemistry.');
-      return r('True yellow glass · no reliable color-only date range','Broad',3,'Intentionally yellow glass spans multiple decorative and specialty uses.');
-    }
-    if(color==='gray'){
-      if(chem==='tint') return r('ca. 1915–1925 tendency · exceptions occur','Moderate',7,'A subtle gray tint in otherwise colorless bottle glass has limited chronological value.');
-      return r('True gray glass · date unresolved from color alone','Broad',3,'Gray specialty, leaded, tile, and decorative glass spans multiple periods.');
-    }
-    if(color==='canary'){
-      if(chem==='uvyes') return r('If uranium-colored glass: widespread ca. 1830s–1940s','Strong',8,'Strong green fluorescence supports uranium-colored glass, widely used across this period.');
-      return r('Canary / Vaseline color · UV confirmation needed for a uranium date range','Moderate',5,'Yellow-green color suggests uranium glass but fluorescence is a stronger field clue.');
-    }
-    if(color==='slag'){
-      if(place.includes('leland')) return r('Leland iron-smelting slag · ca. 1870–1885','Diagnostic',10,'Known Leland provenance can tie industrial slag to the Leland iron furnace operating period.');
-      if(place.includes('frankfort')||place.includes('elberta')) return r('Frankfort / Elberta iron-smelting slag · ca. 1870–1883','Diagnostic',10,'Known Frankfort/Elberta provenance can tie industrial slag to the local ironworks period.');
-      return r('Industrial slag · local furnace attribution needed for a tighter date','Moderate',7,'Industrial slag can be highly dateable when a specific furnace/source context is defensible.');
-    }
-    if(color==='aqua') return r('American aqua utility glass broadly 19th to early 20th century · often pre-1930','Moderate',6,'Aqua is common in historic utility bottles and jars but still needs manufacturing clues for a narrow date.');
-    if(color==='seafoam') return r('If utilitarian blue-green bottle glass: usually 19th to very early 20th century','Moderate',5,'Blue-green utility glass generally favors earlier bottle manufacture, with important object-type exceptions.');
-    if(color==='darkaqua'||color==='teal') return r('If utilitarian blue-green glass: often 19th to very early 20th century · decorative / insulator glass may be later','Moderate',5,'Object type is necessary before treating blue-green color as chronological.');
-    if(color==='lime') return r('Bright “7-Up” green strongly favors the 20th century','Moderate',5,'Very bright green is unusual on 19th-century bottles and becomes characteristic in the 20th century.');
-    if(color==='olive') return r('Olive bottle glass favors the 19th century · wine / champagne are important later exceptions','Moderate',7,'Olive and olive-amber have useful 19th-century tendencies but are not universally early.');
-    if(color==='black') return r('Historic near-black bottle glass strongly favors the 19th century · later imports / specialty glass occur','Moderate',8,'Very dark olive or amber bottle glass is strongly associated with earlier bottle traditions.');
-    if(color==='purple') return r('If true purple bottle glass: chiefly mid-19th century to early 1880s · decorative glass may be later','Moderate',7,'Intentional purple bottle glass is distinct from later solarized manganese glass.');
-    if(color==='milkglass') return r('Cosmetic / toiletry bottles mainly late 19th–early 20th century · jars often continue later','Moderate',7,'Milk glass is strongly tied to cosmetic, toiletry, ointment, and cream containers across these periods.');
-    if(color==='opalescent') return r('Often early-20th-century decorative glass · color alone is not a firm date','Broad',4,'Opalescent glass becomes more useful when combined with form or known decorative patterns.');
-    if(color==='pink') return r('Often 20th-century decorative / household glass · sun-altered manganese is another possibility','Broad',4,'Pink has multiple causes and uses, so color alone is not a defensible narrow date.');
-    if(color==='cobalt') return r('Cobalt spans many bottle classes from the 19th century onward · color alone is broad','Broad',4,'Cobalt has limited dating utility without maker, product, or manufacturing evidence.');
-    if(color==='brown') return r('Amber / brown spans many periods · no reliable color-only date','Broad',3,'Amber is common across beverage, medicine, bitters, and household bottles.');
-    if(color==='green') return r('Green spans many periods · no reliable color-only date','Broad',3,'Most green shades have limited chronological value without form, finish, or manufacturing evidence.');
-    if(color==='red'||color==='orange') return r('Rare color, but no reliable color-only manufacture date','Broad',4,'Rarity is not the same as chronological value; specialty and decorative uses span multiple periods.');
-    return r('Broad date only · stronger manufacturing clue needed','Broad',2,'Color alone does not provide a defensible narrow chronology for this specimen.');
-  }
-
-  function evaluateSpecimen(obs){
-    const color=colorById(obs.colorId);const scores={bottle:0,jar:0,flat:0,decorative:0,slag:0,insulator:0};const evidence=[];const cautions=[];
-    const add=(type,points,reason)=>{scores[type]+=points;if(reason)evidence.push(reason);};
-    if(obs.form==='curved'){add('bottle',4,'Clear vessel curvature strongly supports container glass.');add('jar',1);}
-    if(obs.form==='flat') evidence.push('Small-fragment flatness is weak source evidence because breakage and tumbling can erase original curvature.');
-    if(obs.form==='rim'){add('bottle',5,'A surviving rim or finish is a diagnostic vessel feature.');add('jar',2);}
-    if(obs.form==='base'){add('bottle',3,'A surviving base or heel supports a vessel identification.');add('jar',3);}
-    if(obs.form==='neck') add('bottle',6,'A surviving neck strongly supports a bottle.');
-    if(obs.mark==='letters'){add('bottle',3,'Embossing is high-value manufacturing evidence.');add('jar',2);}
-    if(obs.mark==='vents') add('bottle',2,'Molded air vents support manufactured bottle glass.');
-    if(obs.mark==='ripple') add('flat',6,'Deliberate waviness is meaningful evidence for flat / plate glass.');
-    if(obs.mark==='smooth') evidence.push('Even frosting and softened edges support prolonged shoreline weathering.');
-    if(obs.mark==='rough') evidence.push('Remaining gloss or sharper facets suggest lighter shoreline weathering.');
-    if(obs.thickness==='thin') add('bottle',1,'Thin glass is compatible with bottle-wall glass but is not diagnostic.');
-    if(obs.thickness==='medium'){add('jar',2,'Medium thickness fits heavier containers or tableware.');add('bottle',1);}
-    if(obs.thickness==='thick'){add('slag',2,'Heavy thickness raises industrial-material potential.');add('insulator',2,'Heavy thickness can fit utility / insulator glass.');add('bottle',1);}
-    if(obs.opacity==='opaque'&&obs.colorId==='milkglass'){add('jar',5,'Confirmed opacity strongly supports true milk glass.');add('decorative',2);}
-    if(obs.opacity==='opaque'&&obs.colorId==='slag') add('slag',4,'Opaque or near-opaque material supports industrial slag.');
-    if(['white','brown','aqua','seafoam','green','olive','lime','darkaqua','teal'].includes(obs.colorId)) add('bottle',2,'The selected color is compatible with historic utility-container glass.');
-    if(obs.colorId==='cobalt'){add('bottle',2,'Cobalt is compatible with medicine and specialty bottles.');add('decorative',2);}
-    if(['pink','purple','gray','yellow','opalescent','canary','red','orange'].includes(obs.colorId)) add('decorative',3,'The color raises specialty or decorative possibilities.');
-    if(obs.colorId==='teal'){add('jar',2,'Teal also occurs in utilitarian jars and containers.');add('insulator',1,'Teal occurs in historic electrical insulators.');}
-    if(obs.colorId==='darkaqua') add('insulator',2,'Dark aqua can occur in historic electrical insulators.');
-    if(obs.colorId==='milkglass') add('jar',3,'Milk glass commonly occurs in cosmetic, ointment, and household containers.');
-    if(obs.colorId==='slag') add('slag',6,'The selected material category directly supports industrial slag.');
-    if(obs.colorId==='black') add('bottle',2,'Near-black pieces are often deeply colored bottle glass.');
-    if(obs.diagnosticKey==='finish'&&obs.diagnostic&&obs.diagnostic!=='unclear') add('bottle',4,'The surviving finish is strong vessel evidence.');
-    if(obs.diagnosticKey==='base'&&['pontil','owens','seamedge','machine','embossed'].includes(obs.diagnostic)) add('bottle',4,'The base preserves a diagnostic manufacturing feature.');
-    if(obs.diagnosticKey==='embossing'&&obs.diagnostic&&obs.diagnostic!=='unclear') add('bottle',3,'The surviving mark may support maker- or product-level identification.');
-    if(obs.diagnosticKey==='manganese'&&obs.diagnostic==='solarized') add('bottle',2,'Pale solarized amethyst is compatible with originally colorless manganese-decolorized container glass.');
-    if(obs.diagnosticKey==='manganese'&&obs.diagnostic==='deep') add('decorative',3,'Deep even purple may have been intentionally colored.');
-    if(obs.diagnosticKey==='milk'&&obs.diagnostic==='clear') cautions.push('Clear light transmission conflicts with true milk glass and suggests heavily frosted clear glass instead.');
-    if(obs.diagnosticKey==='slag'&&obs.diagnostic==='vessel') cautions.push('Vessel-like curvature conflicts with an industrial-slag identification.');
-    if(obs.form==='flat'&&obs.mark!=='ripple') cautions.push('A small flat shard is not enough to identify window glass.');
-
-    const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);const [top,second]=ranked;const margin=top[1]-second[1];
-    let strength='Possible';if(top[1]===0) strength='Unresolved';else if(top[1]>=9&&margin>=3) strength='Distinctive match';else if(top[1]>=6&&margin>=2) strength='Strong match';else if(top[1]>=4) strength='Good match';
-    const labels={bottle:'Bottle / container glass',jar:'Jar / heavier container',flat:'Flat / plate glass',decorative:'Decorative / specialty glass',slag:'Industrial slag',insulator:'Utility / insulator glass'};
-    const estimate=estimatePeriod(obs);
-    return {logicVersion:LOGIC_VERSION,analyzedAt:new Date().toISOString(),source:labels[top[0]]||'Unresolved',period:estimate.text,datingConfidence:estimate.confidence,colorRarity:color.rarity,formDistinctiveness:formDistinctiveness(obs.form),historyInterest:estimate.historyInterest,strength,evidence,cautions,datingBasis:estimate.basis,scoreMargin:margin};
-  }
-
-  function researchRefs(obs){
-    const color=colorById(obs.colorId);const region=regionById(obs.regionId);const refs=[...(color.refs||[]),...(region.refs||[]),'Society for Historical Archaeology — Historic Glass Bottle Identification'];return refs.filter((v,i,a)=>a.indexOf(v)===i);
+  function periodReading(){
+    if(state.diagnosticKey==='base'&&state.diagnostic==='pontil') return 'Usually pre-1870s; utilitarian bottles often pre-1865';
+    if(state.diagnosticKey==='manganese'&&state.diagnostic==='solarized') return 'ca. 1890–1920 probable · some examples into the 1930s';
+    if(state.diagnosticKey==='manganese'&&state.diagnostic==='deep') return 'Intentional purple possible · date unresolved from color alone';
+    if(state.color==='lavender') return 'If solarized manganese glass: ca. 1890–1920 probable';
+    if(state.diagnosticKey==='seam'&&state.diagnostic==='through') return 'Machine-made · generally 20th century';
+    if(state.diagnosticKey==='seam'&&state.diagnostic==='stops') return 'Mouth-blown · commonly pre-1920';
+    if(state.diagnosticKey==='base'&&state.diagnostic==='machine') return 'Machine-made · generally 20th century';
+    if((state.diagnosticKey==='base'&&state.diagnostic==='embossed')||(state.diagnosticKey==='embossing'&&state.diagnostic)) return 'Diagnostic mark present · maker research may narrow date';
+    return 'Broad date only · stronger manufacturing clue needed';
   }
 
   function renderResult(){
-    const {observations:obs,interpretation:reading}=currentReading||{};if(!obs||!reading)return;
-    const color=colorById(obs.colorId);const region=regionById(obs.regionId);const accession=reanalysisId?savedSpecimens.find(d=>d.id===reanalysisId)?.id:nextAccession(obs.colorId).id;
-    root.querySelector('#resultSpecNo').textContent=reanalysisId?`Re-analysis · ${accession}`:`Next accession · ${accession}`;
-    root.querySelector('#resultName').textContent=color.name;root.querySelector('#resultRegion').textContent=`${region.label} · Lake Michigan`;
-    root.querySelector('#rarityFill').style.width=`${color.rarity*10}%`;root.querySelector('#rarityValue').textContent=`${color.rarity} / 10`;
+    const color=GLASS_COLORS.find(c=>c.id===state.color)||GLASS_COLORS[2];
+    const region=REGIONS[state.region]||REGIONS.unsure;
+    const regional=color&&region.colorNote[color.id];
+    const reading=evaluateSpecimen(color);
+    currentSpecimenCode=nextAccession(color.id).id;
+
+    root.querySelector('#resultSpecNo').textContent=`Next accession · ${currentSpecimenCode}`;
+    root.querySelector('#resultName').textContent=color.name;
+    root.querySelector('#resultRegion').textContent=`${region.label} · Lake Michigan`;
+    root.querySelector('#rarityFill').style.width=`${color.rarity*10}%`;
+    root.querySelector('#rarityValue').textContent=`${color.rarity} / 10`;
     root.querySelector('#resultStone').style.background=`linear-gradient(145deg,rgba(255,255,255,.52),${color.hex} 62%,${color.hex})`;
-    root.querySelector('#resultSummary').innerHTML=`Best current match: <em>${reading.source.toLowerCase()}</em>. ${reading.evidence[0]||'The available clues support a cautious field interpretation.'}`;
-    root.querySelector('#rarityPill').textContent=rarityLabel(color.rarity);root.querySelector('#shorePill').textContent=`${region.label} shoreline`;root.querySelector('#wearPill').textContent=shortMark(obs.mark);root.querySelector('#strengthPill').textContent=reading.strength;root.querySelector('#datingConfidencePill').textContent=`Dating confidence · ${reading.datingConfidence}`;
-    root.querySelector('#originText').textContent=reading.source;root.querySelector('#thicknessText').textContent=shortThickness(obs.thickness);root.querySelector('#formText').textContent=shortForm(obs.form);root.querySelector('#opacityText').textContent=obs.opacity?obs.opacity.charAt(0).toUpperCase()+obs.opacity.slice(1):'Not recorded';root.querySelector('#markText').textContent=shortMark(obs.mark);root.querySelector('#diagnosticText').textContent=diagnosticLabel(obs);root.querySelector('#periodText').textContent=reading.period;root.querySelector('#dateBasisNote').textContent=reading.datingBasis;
-    root.querySelector('#regionalClue').textContent=region.colorNote?.[obs.colorId]||`${region.label} context is supporting evidence, not proof of source.`;
-    root.querySelector('#colorNote').textContent=[color.note,...reading.evidence.slice(0,3)].filter(Boolean).join(' ');
-    root.querySelector('#regionSpecificText').textContent=region.colorNote?.[obs.colorId]||'No strong color-specific regional clue is available for this combination.';root.querySelector('#regionalHistory').textContent=region.blurb;root.querySelector('#researchBasis').textContent=researchRefs(obs).join(' · ')+'.';
-    root.querySelector('#colorRating').style.width=`${reading.colorRarity*10}%`;root.querySelector('#colorRatingValue').textContent=`${reading.colorRarity} / 10`;root.querySelector('#formRating').style.width=`${reading.formDistinctiveness*10}%`;root.querySelector('#formRatingValue').textContent=`${reading.formDistinctiveness} / 10`;root.querySelector('#historyRating').style.width=`${reading.historyInterest*10}%`;root.querySelector('#historyRatingValue').textContent=`${reading.historyInterest} / 10`;
-    root.querySelector('#knownPlace').textContent=obs.foundAt||'Not recorded';root.querySelector('#knownDate').textContent=obs.foundDate?formatDate(obs.foundDate):'Not recorded';root.querySelector('#knownNote').textContent=obs.collectorNote||'No collector note recorded.';
-    const unresolved=reading.strength==='Unresolved'||reading.datingConfidence==='Broad'||reading.cautions.length>0;root.querySelector('#uncertainNote').hidden=!unresolved;if(unresolved) root.querySelector('#uncertainText').textContent=reading.cautions[0]||'The current evidence remains broad. A manufacturing mark, finish, base feature, or clearer chemistry clue could substantially change this reading.';
-    const tags=root.querySelector('#sourceTags');tags.innerHTML='';[reading.source,...color.sources].filter(Boolean).forEach(s=>{const span=document.createElement('span');span.className='source-tag';span.textContent=s;tags.appendChild(span);});
-    root.querySelector('#saveSpecimenBtn').textContent=reanalysisId?'Update interpretation →':'Save to collection →';
-  }
+    root.querySelector('#resultSummary').innerHTML=`Best current match: <em>${reading.label.toLowerCase()}</em>. ${reading.evidence[0]||'The available clues support a cautious field identification.'}`;
+    root.querySelector('#rarityPill').textContent=rarityLabel(color.rarity);
+    root.querySelector('#shorePill').textContent=`${region.label} shoreline`;
+    root.querySelector('#wearPill').textContent=shortMark(state.mark);
+    root.querySelector('#strengthPill').textContent=reading.strength;
+    root.querySelector('#originText').textContent=reading.label;
+    root.querySelector('#thicknessText').textContent=shortThickness(state.thickness);
+    root.querySelector('#formText').textContent=shortForm(state.form);
+    root.querySelector('#opacityText').textContent=state.opacity.charAt(0).toUpperCase()+state.opacity.slice(1);
+    root.querySelector('#markText').textContent=shortMark(state.mark);
+    root.querySelector('#diagnosticText').textContent=diagnosticLabel();
+    root.querySelector('#periodText').textContent=periodReading();
+    root.querySelector('#regionalClue').textContent=regional||`${region.label} context supports a cautious regional reading.`;
+    root.querySelector('#colorNote').textContent=`${color.note} ${reading.evidence.slice(0,3).join(' ')}`;
+    root.querySelector('#regionSpecificText').textContent=regional||'No strong color-specific regional clue is available for this combination.';
+    root.querySelector('#regionalHistory').textContent=region.blurb;
+    const researchRefs=[...(color.refs||[]),...(region.refs||[])];
+    if(color.id==='lavender') researchRefs.unshift('Society for Historical Archaeology — Historic Glass Bottle Identification');
+    root.querySelector('#researchBasis').textContent=researchRefs.filter((v,i,a)=>a.indexOf(v)===i).join(' · ')+'.';
+    root.querySelector('#interpretationText').textContent='This reading weights diagnostic manufacturing clues most heavily. Small-fragment shape is supporting evidence only; color chemistry, finishes, seams, bases, embossing, thickness, opacity, weathering, and shoreline context can sometimes provide stronger chronological or functional evidence.';
 
-  function formatDate(value){try{return new Date(String(value).length===10?value+'T00:00:00':value).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});}catch{return String(value||'');}}
-  function formatDateTime(value){if(!value)return 'Not recorded';try{return new Date(value).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});}catch{return 'Not recorded';}}
+    const fs=formScore(state.form);
+    const hs=historyScore();
+    root.querySelector('#colorRating').style.width=`${color.rarity*10}%`;
+    root.querySelector('#colorRatingValue').textContent=`${color.rarity} / 10`;
+    root.querySelector('#formRating').style.width=`${fs*10}%`;
+    root.querySelector('#formRatingValue').textContent=`${fs} / 10`;
+    root.querySelector('#historyRating').style.width=`${hs*10}%`;
+    root.querySelector('#historyRatingValue').textContent=`${hs} / 10`;
 
-  root.querySelector('#analyzeBtn').addEventListener('click',()=>{const obs=selectedObservation();const interpretation=evaluateSpecimen(obs);currentReading={observations:obs,interpretation};renderResult();show('result');});
+    const place=root.querySelector('#foundAt').value.trim();
+    const date=root.querySelector('#foundDate').value;
+    const note=root.querySelector('#collectorNote').value.trim();
+    root.querySelector('#knownPlace').textContent=place||'Not recorded';
+    root.querySelector('#knownDate').textContent=date?new Date(date+'T00:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not recorded';
+    root.querySelector('#knownNote').textContent=note||'No collector note recorded.';
 
-  function mirrorInterpretation(record){
-    const i=record.interpretation;record.color=colorById(record.observations.colorId).hex;record.provenance=provenanceText(record.observations);record.period=i.period;record.rarity=`${i.colorRarity} / 10`;record.source=i.source;record.notes=[...(i.evidence||[]),i.datingBasis?`Dating basis: ${i.datingBasis}`:''].filter(Boolean).join(' ');record.lastAnalyzedAt=i.analyzedAt;
-  }
-
-  root.querySelector('#saveSpecimenBtn').addEventListener('click',async()=>{
-    if(!currentReading)return;
-    if(reanalysisId){
-      const record=savedSpecimens.find(d=>d.id===reanalysisId);if(!record)return;
-      if(record.interpretation) record.interpretationHistory.unshift({...record.interpretation,replacedAt:new Date().toISOString()});
-      record.observations={...currentReading.observations,legacy:false};record.interpretation={...currentReading.interpretation};record.name=colorById(record.observations.colorId).name;mirrorInterpretation(record);markArchiveChanged();await persistArchive();const id=record.id;reanalysisId=null;currentReading=null;renderAll();openDetail(id);return;
+    const unresolved=state.form==='unknown'||reading.cautions.length>0||(reading.topScore-reading.secondScore<2);
+    root.querySelector('#uncertainNote').hidden=!unresolved;
+    if(unresolved){
+      root.querySelector('#uncertainText').textContent=reading.cautions[0]||(state.form==='unknown'?'The form is unresolved. Look for curvature, a rim, a base edge, or a neck profile to narrow the source.':'Two object classes remain close. Look for a mold seam, lip, base edge, embossing, or true curvature before treating the identification as settled.');
     }
-    const obs=currentReading.observations;const reading=currentReading.interpretation;const accession=nextAccession(obs.colorId);accessionCounters[obs.colorId]=accession.number;
-    const record={key:`saved-${Date.now()}`,id:accession.id,accessionColor:obs.colorId,accessionNumber:accession.number,accessionedAt:new Date().toISOString(),name:colorById(obs.colorId).name,observations:{...obs},interpretation:{...reading},interpretationHistory:[]};mirrorInterpretation(record);savedSpecimens.unshift(record);markArchiveChanged();await persistArchive();currentReading=null;renderAll();show('collection');
-  });
 
-  function specimenBeach(d){return d.observations?.foundAt||legacyFoundAt(d.provenance)||null;}
-  function recordNeedsUpdate(d){return d.interpretation?.logicVersion!==LOGIC_VERSION;}
-  function incompleteObservations(d){return d.observations?.legacy||!d.observations||!d.observations.form||!d.observations.mark;}
-
-  function renderHome(){
-    const metrics=[...root.querySelectorAll('.metrics .metric b')];const colors=new Set(savedSpecimens.map(d=>d.accessionColor).filter(Boolean));const beaches=new Set(savedSpecimens.map(specimenBeach).filter(Boolean));
-    if(metrics[0])metrics[0].textContent=String(savedSpecimens.length).padStart(2,'0');if(metrics[1])metrics[1].textContent=String(colors.size).padStart(2,'0');if(metrics[2])metrics[2].textContent=String(beaches.size).padStart(2,'0');
-    const label=root.querySelector('.home-archive-heading .section-label');const strip=root.querySelector('[data-screen="home"] .find-strip');strip.innerHTML='';
-    if(!savedSpecimens.length){label.textContent='Recent accessions · none yet';const card=document.createElement('div');card.className='find-card empty-accession';card.innerHTML='<div class="stone clear"></div><b>Your archive starts here</b><small>Identify a find, then save it</small>';strip.appendChild(card);return;}
-    label.textContent='Recent accessions';savedSpecimens.slice(0,3).forEach(d=>{const card=document.createElement('div');card.className='find-card';card.innerHTML=`<div class="stone" style="background:linear-gradient(145deg,rgba(255,255,255,.55),${d.color||'#c8d8d4'} 68%,${d.color||'#c8d8d4'})"></div><b>${escapeHtml(d.name||'Saved specimen')}</b><small>${escapeHtml(d.id)}</small>`;card.addEventListener('click',()=>openDetail(d.id));strip.appendChild(card);});
-  }
-
-  function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-
-  function populateFilters(){
-    const colorSelect=root.querySelector('#filterColor');const chosen=colorSelect.value;colorSelect.innerHTML='<option value="">All colors</option>';GLASS_COLORS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;colorSelect.appendChild(o);});colorSelect.value=chosen;
-    const beachSelect=root.querySelector('#filterBeach');const beachChosen=beachSelect.value;beachSelect.innerHTML='<option value="">All beaches</option>';[...new Set(savedSpecimens.map(specimenBeach).filter(Boolean))].sort().forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;beachSelect.appendChild(o);});beachSelect.value=beachChosen;
-  }
-
-  function periodYears(period){return (String(period||'').match(/\b(1[7-9]\d{2}|20\d{2})\b/g)||[]).map(Number);}
-  function eraClass(d){const years=periodYears(d.interpretation?.period);if(!years.length)return 'broad';const min=Math.min(...years),max=Math.max(...years);if(max<1900)return 'pre1900';if(min>=1950)return '1950plus';if(min>=1900&&max<1950)return '1900-1949';return 'broad';}
-
-  function filteredRecords(){
-    const q=root.querySelector('#collectionSearch').value.trim().toLowerCase();const color=root.querySelector('#filterColor').value;const beach=root.querySelector('#filterBeach').value;const era=root.querySelector('#filterEra').value;const status=root.querySelector('#filterStatus').value;const sort=root.querySelector('#sortCollection').value;
-    let rows=savedSpecimens.filter(d=>{
-      if(color&&d.accessionColor!==color)return false;if(beach&&specimenBeach(d)!==beach)return false;if(era&&eraClass(d)!==era)return false;
-      if(status==='diagnostic'&&d.interpretation?.datingConfidence!=='Diagnostic')return false;if(status==='unresolved'&&d.interpretation?.datingConfidence!=='Broad'&&d.interpretation?.source!=='Unresolved')return false;if(status==='legacy'&&!incompleteObservations(d))return false;
-      if(q){const hay=[d.id,d.name,d.provenance,d.source,d.period,d.notes,d.observations?.diagnosticText,d.observations?.collectorNote].join(' ').toLowerCase();if(!hay.includes(q))return false;}return true;
+    const tags=root.querySelector('#sourceTags');
+    tags.innerHTML='';
+    [reading.label,...color.sources].forEach(source=>{
+      const tag=document.createElement('span');
+      tag.className='source-tag';
+      tag.textContent=source;
+      tags.appendChild(tag);
     });
-    rows=[...rows];
-    if(sort==='oldest') rows.sort((a,b)=>new Date(a.accessionedAt||0)-new Date(b.accessionedAt||0));
-    else if(sort==='rarity') rows.sort((a,b)=>(b.interpretation?.colorRarity||0)-(a.interpretation?.colorRarity||0));
-    else if(sort==='color') rows.sort((a,b)=>`${a.accessionColor}-${a.accessionNumber}`.localeCompare(`${b.accessionColor}-${b.accessionNumber}`,undefined,{numeric:true}));
-    else if(sort==='beach') rows.sort((a,b)=>String(specimenBeach(a)||'').localeCompare(String(specimenBeach(b)||''));
-    else rows.sort((a,b)=>new Date(b.accessionedAt||0)-new Date(a.accessionedAt||0));
-    return rows;
   }
 
-  function renderColorSummary(){
-    const wrap=root.querySelector('#colorSummary');wrap.innerHTML='';const counts={};savedSpecimens.forEach(d=>{counts[d.accessionColor]=(counts[d.accessionColor]||0)+1;});
-    Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([id,count])=>{const c=colorById(id);const btn=document.createElement('button');btn.type='button';btn.className='color-chip'+(root.querySelector('#filterColor').value===id?' active':'');btn.textContent=`${c.name} ${count}`;btn.addEventListener('click',()=>{const select=root.querySelector('#filterColor');select.value=select.value===id?'':id;renderCollection();});wrap.appendChild(btn);});
+  renderDiagnostic();
+  root.querySelector('#analyzeBtn').addEventListener('click',()=>{renderResult();show('result');});
+
+  function openArchiveDb(){
+    return new Promise((resolve,reject)=>{
+      if(!('indexedDB' in window)){resolve(null);return;}
+      const req=indexedDB.open(ARCHIVE_DB,1);
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains(ARCHIVE_STORE)) db.createObjectStore(ARCHIVE_STORE);
+      };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error);
+    });
   }
 
-  function renderIntelligence(){
-    const wrap=root.querySelector('#collectionIntelligence');wrap.innerHTML='';if(!savedSpecimens.length)return;
-    const raritySorted=[...savedSpecimens].sort((a,b)=>(b.interpretation?.colorRarity||0)-(a.interpretation?.colorRarity||0));const rare=raritySorted[0];
-    const dated=savedSpecimens.map(d=>({d,years:periodYears(d.interpretation?.period)})).filter(x=>x.years.length);dated.sort((a,b)=>Math.min(...a.years)-Math.min(...b.years));const oldest=dated[0]?.d;
-    const beaches={};savedSpecimens.forEach(d=>{const b=specimenBeach(d);if(b)beaches[b]=(beaches[b]||0)+1;});const topBeach=Object.entries(beaches).sort((a,b)=>b[1]-a[1])[0];
-    const colors={};savedSpecimens.forEach(d=>colors[d.accessionColor]=(colors[d.accessionColor]||0)+1);const topColor=Object.entries(colors).sort((a,b)=>b[1]-a[1])[0];
-    const diagnostic=savedSpecimens.filter(d=>d.interpretation?.datingConfidence==='Diagnostic').length;const unresolved=savedSpecimens.filter(d=>d.interpretation?.datingConfidence==='Broad'||d.interpretation?.source==='Unresolved').length;
-    const pre=savedSpecimens.filter(d=>eraClass(d)==='pre1900').length,twenty=savedSpecimens.filter(d=>['1900-1949','1950plus'].includes(eraClass(d))).length;
-    const cards=[
-      ['Oldest probable',oldest?oldest.id:'No dated specimen',oldest?.interpretation?.period||'Add diagnostic clues'],
-      ['Rarest color',rare?colorById(rare.accessionColor).name:'—',rare?`${rare.interpretation?.colorRarity||'—'} / 10 · ${rare.id}`:'—'],
-      ['Most-found beach',topBeach?.[0]||'Not enough provenance',topBeach?`${topBeach[1]} specimens`:'Record a beach to build this'],
-      ['Most collected color',topColor?colorById(topColor[0]).name:'—',topColor?`${topColor[1]} specimens`:'—'],
-      ['Dating profile',`${diagnostic} diagnostic`,`${pre} pre-1900 · ${twenty} 1900+`],
-      ['Needs another look',`${unresolved} broad / unresolved`,`${savedSpecimens.filter(incompleteObservations).length} legacy observation records`]
-    ];
-    cards.forEach(([label,value,sub])=>{const card=document.createElement('div');card.className='intel-card';card.innerHTML=`<small>${escapeHtml(label)}</small><b>${escapeHtml(value)}</b><span>${escapeHtml(sub)}</span>`;wrap.appendChild(card);});
+  async function persistSavedSpecimens(){
+    try{
+      const db=await openArchiveDb();
+      if(!db) return;
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(ARCHIVE_STORE,'readwrite');
+        const store=tx.objectStore(ARCHIVE_STORE);
+        store.put(savedSpecimens,'specimens');
+        store.put({...accessionCounters},'accessionCounters');
+        tx.oncomplete=()=>resolve();
+        tx.onerror=()=>reject(tx.error);
+      });
+      db.close();
+    }catch(err){}
   }
 
-  function renderBackup(){
-    const el=root.querySelector('#backupStatus');const span=el.querySelector('span');
-    if(!archiveMeta.lastExportAt){span.textContent='No export recorded yet. Your collection exists only on this device/browser.';return;}
-    const changed=(Number(archiveMeta.revision)||0)>(Number(archiveMeta.lastExportRevision)||0);const delta=savedSpecimens.length-(Number(archiveMeta.lastExportCount)||0);
-    if(!changed) span.textContent=`Backed up ${formatDateTime(archiveMeta.lastExportAt)} · archive unchanged since export.`;
-    else if(delta>0) span.textContent=`${delta} specimen${delta===1?'':'s'} added since your ${formatDateTime(archiveMeta.lastExportAt)} backup. Export again to protect the latest archive.`;
-    else span.textContent=`Archive changed since your ${formatDateTime(archiveMeta.lastExportAt)} backup. Export again to preserve edits or re-analysis.`;
+  async function restoreSavedSpecimens(){
+    try{
+      const db=await openArchiveDb();
+      if(!db) return;
+      const restored=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(ARCHIVE_STORE,'readonly');
+        const store=tx.objectStore(ARCHIVE_STORE);
+        const specimensReq=store.get('specimens');
+        const countersReq=store.get('accessionCounters');
+        tx.oncomplete=()=>resolve({rows:specimensReq.result,counters:countersReq.result});
+        tx.onerror=()=>reject(tx.error);
+      });
+      db.close();
+
+      if(Array.isArray(restored.rows)){
+        const normalized=normalizeAccessionRows(restored.rows);
+        savedSpecimens.splice(0,savedSpecimens.length,...normalized);
+      }
+      Object.keys(accessionCounters).forEach(key=>delete accessionCounters[key]);
+      if(restored.counters&&typeof restored.counters==='object'){
+        Object.entries(restored.counters).forEach(([key,value])=>{
+          const n=Number(value);
+          if(Number.isInteger(n)&&n>0) accessionCounters[key]=n;
+        });
+      }
+      mergeCountersFromSpecimens();
+      await persistSavedSpecimens();
+      renderCollection();
+    }catch(err){
+      renderCollection();
+    }
   }
+
+  function specimenBeach(d){
+    const first=String(d.provenance||'').split(' · ')[0].trim();
+    if(!first||first==='Not recorded'||first==='Chicago area'||first==='Milwaukee area'||first==='Michigan shoreline'||first==='Lake Michigan') return null;
+    return first;
+  }
+
+  function ensureArchiveNavigation(){
+    const home=root.querySelector('[data-screen="home"]');
+    if(!home) return;
+
+    const firstMetric=home.querySelector('.metrics .metric');
+    if(firstMetric&&!firstMetric.dataset.archiveBound){
+      firstMetric.dataset.archiveBound='1';
+      firstMetric.classList.add('metric-link');
+      firstMetric.tabIndex=0;
+      firstMetric.setAttribute('role','button');
+      firstMetric.setAttribute('aria-label','View full specimen collection');
+      firstMetric.addEventListener('click',()=>show('collection'));
+      firstMetric.addEventListener('keydown',e=>{
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();show('collection');}
+      });
+    }
+
+    const label=root.querySelector('[data-screen="home"] .section-label');
+    if(label&&!home.querySelector('.home-archive-heading')){
+      const heading=document.createElement('div');
+      heading.className='home-archive-heading';
+      const view=document.createElement('button');
+      view.className='view-collection-btn';
+      view.type='button';
+      view.textContent='View collection →';
+      view.addEventListener('click',()=>show('collection'));
+      label.before(heading);
+      heading.append(label,view);
+    }
+  }
+
+  function ensureAccessionHelp(){
+    const collection=root.querySelector('[data-screen="collection"]');
+    if(!collection||collection.querySelector('.accession-help')) return;
+    const tools=collection.querySelector('.archive-tools');
+    const help=document.createElement('div');
+    help.className='accession-help';
+    help.innerHTML='<b>About accession numbers</b><p>Each color keeps its own permanent sequence. <strong>LM.CLEAR.005</strong> is the fifth clear/white specimen in your archive; <strong>LM.GREEN.001</strong> is your first green. Numbers are never reused after deletion.</p>';
+    tools.before(help);
+  }
+
+  function renderHomeArchive(){
+    const home=root.querySelector('[data-screen="home"]');
+    if(!home) return;
+    ensureArchiveNavigation();
+
+    const metricValues=[...home.querySelectorAll('.metrics .metric b')];
+    const uniqueColors=new Set(savedSpecimens.map(d=>inferColorId(d)).filter(v=>v&&v!=='unclassified'));
+    const uniqueBeaches=new Set(savedSpecimens.map(specimenBeach).filter(Boolean));
+    if(metricValues[0]) metricValues[0].textContent=String(savedSpecimens.length).padStart(2,'0');
+    if(metricValues[1]) metricValues[1].textContent=String(uniqueColors.size).padStart(2,'0');
+    if(metricValues[2]) metricValues[2].textContent=String(uniqueBeaches.size).padStart(2,'0');
+
+    const label=home.querySelector('.section-label');
+    const strip=home.querySelector('.find-strip');
+    if(!strip) return;
+    strip.innerHTML='';
+
+    if(!savedSpecimens.length){
+      if(label) label.textContent='Recent accessions · none yet';
+      const card=document.createElement('div');
+      card.className='find-card empty-accession';
+      const stone=document.createElement('div');
+      stone.className='stone clear';
+      const title=document.createElement('b');
+      title.textContent='Your archive starts here';
+      const small=document.createElement('small');
+      small.textContent='Identify a find, then save it';
+      card.append(stone,title,small);
+      strip.appendChild(card);
+      return;
+    }
+
+    if(label) label.textContent='Recent accessions';
+    savedSpecimens.slice(0,3).forEach(d=>{
+      const card=document.createElement('div');
+      card.className='find-card';
+      const stone=document.createElement('div');
+      stone.className='stone';
+      stone.style.background=`linear-gradient(145deg,rgba(255,255,255,.55),${d.color||'#c8d8d4'} 68%,${d.color||'#c8d8d4'})`;
+      const title=document.createElement('b');
+      title.textContent=d.name||'Saved specimen';
+      const small=document.createElement('small');
+      small.textContent=d.id||'Lakeglass specimen';
+      card.append(stone,title,small);
+      strip.appendChild(card);
+    });
+  }
+
+  let activeDetailIndex=null;
 
   function renderCollection(){
-    populateFilters();renderColorSummary();renderIntelligence();renderBackup();const rows=filteredRecords();const grid=root.querySelector('#collectionGrid');grid.innerHTML='';root.querySelector('#collectionCount').textContent=`${rows.length}${rows.length!==savedSpecimens.length?` of ${savedSpecimens.length}`:''} ${savedSpecimens.length===1?'specimen':'specimens'}`;
-    if(!rows.length){const empty=document.createElement('div');empty.className='collection-empty';empty.innerHTML=`<b>${savedSpecimens.length?'No specimens match these filters.':'No specimens saved yet.'}</b><p>${savedSpecimens.length?'Clear a filter or search term to see the rest of the archive.':'Identify a piece of lake glass and save its observation record to begin.'}</p>`;grid.appendChild(empty);return;}
-    rows.forEach(d=>{
-      const card=document.createElement('article');card.className='spec-card';card.tabIndex=0;
-      const flags=[];if(recordNeedsUpdate(d))flags.push('<span class="spec-flag attention">New interpretation available</span>');if(incompleteObservations(d))flags.push('<span class="spec-flag attention">Legacy observations</span>');if(d.interpretation?.datingConfidence==='Diagnostic')flags.push('<span class="spec-flag">Diagnostic dating</span>');
-      card.innerHTML=`<div class="spec-id">${escapeHtml(d.id)} · ${escapeHtml(specimenBeach(d)||'Location not recorded')}</div><div class="stone" style="background:linear-gradient(145deg,rgba(255,255,255,.55),${d.color||'#c8d8d4'} 68%,${d.color||'#c8d8d4'})"></div><h3>${escapeHtml(d.name||'Saved specimen')}</h3><p>${escapeHtml(d.interpretation?.source||'Unresolved')} · ${escapeHtml((d.interpretation?.period||'Broad date only').toLowerCase())}</p>${flags.length?`<div class="spec-flags">${flags.join('')}</div>`:''}`;
-      card.addEventListener('click',()=>openDetail(d.id));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(d.id);}});grid.appendChild(card);
-    });
+    ensureAccessionHelp();
+    const grid=root.querySelector('#collectionGrid');
+    grid.innerHTML='';
+
+    if(!savedSpecimens.length){
+      const empty=document.createElement('div');
+      empty.className='collection-empty';
+      const title=document.createElement('b');
+      title.textContent='No specimens saved yet.';
+      const copy=document.createElement('p');
+      copy.textContent='Identify a piece of lake glass and save the field reading to begin your personal archive.';
+      empty.append(title,copy);
+      grid.appendChild(empty);
+    }else{
+      savedSpecimens.forEach((d,index)=>{
+        const card=document.createElement('article');
+        card.className='spec-card';
+        card.tabIndex=0;
+        card.dataset.spec=String(index);
+
+        const id=document.createElement('div');
+        id.className='spec-id';
+        id.textContent=`${d.id||'Lakeglass specimen'} · ${specimenBeach(d)||'Location not recorded'}`;
+
+        const stone=document.createElement('div');
+        stone.className='stone';
+        stone.style.background=`linear-gradient(145deg,rgba(255,255,255,.55),${d.color||'#c8d8d4'} 68%,${d.color||'#c8d8d4'})`;
+
+        const title=document.createElement('h3');
+        title.textContent=d.name||'Saved specimen';
+
+        const copy=document.createElement('p');
+        copy.textContent=`${d.source||'Unresolved'} · ${(d.period||'Undetermined').toLowerCase()}`;
+
+        card.append(id,stone,title,copy);
+        card.addEventListener('click',()=>openDetail(index));
+        card.addEventListener('keydown',e=>{
+          if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(index);}
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    root.querySelector('#collectionCount').textContent=`${savedSpecimens.length} ${savedSpecimens.length===1?'specimen':'specimens'}`;
+    renderHomeArchive();
   }
 
-  ['collectionSearch','filterColor','filterBeach','filterEra','filterStatus','sortCollection'].forEach(id=>{const el=root.querySelector('#'+id);el?.addEventListener(id==='collectionSearch'?'input':'change',renderCollection);});
-
-  function observationValue(label,value){return `<div class="observation-item"><small>${escapeHtml(label)}</small><b>${escapeHtml(value||'Not recorded')}</b></div>`;}
-
-  function openDetail(id){
-    const d=savedSpecimens.find(x=>x.id===id);if(!d)return;activeDetailId=id;const o=d.observations||{};const i=d.interpretation||{};
-    root.querySelector('#detailId').textContent=d.id;root.querySelector('#detailName').textContent=d.name;root.querySelector('#detailProvenance').textContent=provenanceText(o)||d.provenance||'Not recorded';root.querySelector('#detailPeriod').textContent=i.period||'Broad date only';root.querySelector('#detailRarity').textContent=`${i.colorRarity||numberFromRarity(d.rarity,d.accessionColor)} / 10 · ${rarityLabel(i.colorRarity||numberFromRarity(d.rarity,d.accessionColor))}`;root.querySelector('#detailSource').textContent=i.source||'Unresolved';root.querySelector('#detailDatingConfidence').textContent=i.datingConfidence||'Broad';root.querySelector('#detailAnalyzedAt').textContent=formatDateTime(i.analyzedAt||d.lastAnalyzedAt);
-    root.querySelector('#detailSummary').textContent=incompleteObservations(d)?'This accession predates structured observation storage. Its known provenance and earlier interpretation are preserved, but some physical selections need to be re-entered before a full modern re-analysis.':'The observed specimen record is preserved separately from the current interpretation.';
-    const colorObs=colorById(o.colorId||d.accessionColor).name;const accessionColor=colorById(d.accessionColor).name;root.querySelector('#detailObservations').innerHTML=[
-      observationValue('Accession color',accessionColor),observationValue('Recorded color',colorObs),observationValue('Thickness',shortThickness(o.thickness)),observationValue('Surviving form',shortForm(o.form)),observationValue('Opacity',o.opacity),observationValue('Surface / marking',shortMark(o.mark)),observationValue('Diagnostic feature',diagnosticLabel(o)),observationValue('Found at',o.foundAt||'Not recorded'),observationValue('Found on',o.foundDate?formatDate(o.foundDate):'Not recorded'),observationValue('Collector note',o.collectorNote||'None recorded')
-    ].join('');
-    root.querySelector('#detailNotes').textContent=[...(i.evidence||[]),...(i.cautions||[]),i.datingBasis?`Dating basis: ${i.datingBasis}`:'',d.notes&&i.logicVersion==='legacy'?`Legacy note: ${d.notes}`:''].filter(Boolean).join(' ')||'No interpretation notes recorded.';
-    renderHistory(d);
-    const reBtn=root.querySelector('#reanalyzeSpecimenBtn');reBtn.textContent=incompleteObservations(d)?'Enter observations & re-analyze':'Re-analyze stored clues';if(recordNeedsUpdate(d)&&!incompleteObservations(d))reBtn.textContent='Apply newest interpretation →';
-    root.querySelector('#editName').value=d.name||'';root.querySelector('#editFoundAt').value=o.foundAt||'';root.querySelector('#editFoundDate').value=o.foundDate||'';root.querySelector('#editCollectorNote').value=o.collectorNote||'';root.querySelector('#editSheet').classList.remove('active');show('detail');
+  function openDetail(index){
+    const d=savedSpecimens[index];
+    if(!d) return;
+    activeDetailIndex=index;
+    root.querySelector('#editSheet').classList.remove('active');
+    root.querySelector('#detailId').textContent=d.id;
+    root.querySelector('#detailName').textContent=d.name;
+    root.querySelector('#detailProvenance').textContent=d.provenance;
+    root.querySelector('#detailPeriod').textContent=d.period;
+    root.querySelector('#detailRarity').textContent=d.rarity;
+    root.querySelector('#detailSource').textContent=d.source;
+    root.querySelector('#detailNotes').textContent=d.notes;
+    show('detail');
   }
 
-  function renderHistory(d){
-    const wrap=root.querySelector('#interpretationHistory');const history=d.interpretationHistory||[];wrap.innerHTML='';if(!history.length){wrap.innerHTML='<p>No earlier interpretations. The next re-analysis will preserve the current reading here.</p>';return;}
-    history.forEach(h=>{const div=document.createElement('div');div.className='history-entry';div.innerHTML=`<small>${escapeHtml(formatDateTime(h.analyzedAt||h.replacedAt))} · logic ${escapeHtml(h.logicVersion||'legacy')}</small><b>${escapeHtml(h.source||'Unresolved')} · ${escapeHtml(h.period||'Broad date')}</b><p>${escapeHtml(h.datingBasis||h.evidence?.[0]||'Earlier Lakeglass interpretation.')}</p>`;wrap.appendChild(div);});
+  function populateEditForm(){
+    const d=savedSpecimens[activeDetailIndex];
+    if(!d) return;
+    root.querySelector('#editName').value=d.name||'';
+    root.querySelector('#editProvenance').value=d.provenance||'';
+    root.querySelector('#editPeriod').value=d.period||'';
+    root.querySelector('#editSource').value=d.source||'';
+    root.querySelector('#editRarity').value=d.rarity||'';
+    root.querySelector('#editNotes').value=d.notes||'';
   }
 
-  root.querySelector('#reanalyzeSpecimenBtn').addEventListener('click',()=>{const d=savedSpecimens.find(x=>x.id===activeDetailId);if(!d)return;beginReanalysis(d);});
+  root.querySelector('#editSpecimenBtn').addEventListener('click',()=>{
+    if(activeDetailIndex===null) return;
+    populateEditForm();
+    root.querySelector('#editSheet').classList.add('active');
+  });
 
-  function beginReanalysis(d){
-    reanalysisId=d.id;const o=d.observations||{};state.region=o.regionId||'unsure';state.color=o.colorId||d.accessionColor||'aqua';state.thickness=o.thickness||'unknown';state.form=o.form||'unknown';state.opacity=o.opacity||null;state.mark=o.mark||'smooth';state.diagnosticKey=o.diagnosticKey||null;state.diagnostic=o.diagnostic||null;state.diagnosticText=o.diagnosticText||'';state.datingAnswer=o.datingAnswer||null;
-    setChoice('region',state.region);setChoice('thickness',state.thickness);setChoice('form',state.form);setChoice('opacity',state.opacity);setChoice('mark',state.mark);selectColor(state.color);root.querySelector('#foundAt').value=o.foundAt||'';root.querySelector('#foundDate').value=o.foundDate||'';root.querySelector('#collectorNote').value=o.collectorNote||'';root.querySelector('#identifyEyebrow').textContent=`Re-analysis · ${d.id}`;root.querySelector('#identifyQuestion').textContent=incompleteObservations(d)?'Complete the observation record.':'Review the stored observations.';root.querySelector('#analyzeBtn').textContent='Re-analyze specimen →';renderDynamicQuestions();show('identify');
-  }
-
-  root.querySelector('#editSpecimenBtn').addEventListener('click',()=>root.querySelector('#editSheet').classList.add('active'));
   root.querySelector('#cancelEditBtn').addEventListener('click',()=>root.querySelector('#editSheet').classList.remove('active'));
-  root.querySelector('#saveEditBtn').addEventListener('click',async()=>{
-    const d=savedSpecimens.find(x=>x.id===activeDetailId);if(!d)return;d.name=root.querySelector('#editName').value.trim()||d.name;d.observations=d.observations||{};d.observations.foundAt=root.querySelector('#editFoundAt').value.trim();d.observations.foundDate=root.querySelector('#editFoundDate').value||null;d.observations.collectorNote=root.querySelector('#editCollectorNote').value.trim();d.provenance=provenanceText(d.observations);markArchiveChanged();await persistArchive();renderAll();openDetail(d.id);
+
+  root.querySelector('#saveEditBtn').addEventListener('click',()=>{
+    const d=savedSpecimens[activeDetailIndex];
+    if(!d) return;
+    d.name=root.querySelector('#editName').value.trim()||d.name;
+    d.provenance=root.querySelector('#editProvenance').value.trim()||'Not recorded';
+    d.period=root.querySelector('#editPeriod').value.trim()||'Undetermined';
+    d.source=root.querySelector('#editSource').value.trim()||'Unresolved';
+    d.rarity=root.querySelector('#editRarity').value.trim()||d.rarity;
+    d.notes=root.querySelector('#editNotes').value.trim()||'No identification notes recorded.';
+    persistSavedSpecimens();
+    renderCollection();
+    openDetail(activeDetailIndex);
   });
 
-  root.querySelector('#deleteSpecimenBtn').addEventListener('click',async()=>{
-    const index=savedSpecimens.findIndex(x=>x.id===activeDetailId);if(index<0)return;const d=savedSpecimens[index];if(!window.confirm(`Delete ${d.id} from your collection? Its accession number will not be reused.`))return;savedSpecimens.splice(index,1);activeDetailId=null;markArchiveChanged();await persistArchive();renderAll();show('collection');
+  root.querySelector('#deleteSpecimenBtn').addEventListener('click',()=>{
+    if(activeDetailIndex===null||!savedSpecimens[activeDetailIndex]) return;
+    const d=savedSpecimens[activeDetailIndex];
+    if(!window.confirm(`Delete ${d.id} from your collection? Its accession number will not be reused.`)) return;
+    savedSpecimens.splice(activeDetailIndex,1);
+    activeDetailIndex=null;
+    persistSavedSpecimens();
+    renderCollection();
+    show('collection');
   });
 
-  root.querySelector('#exportCollectionBtn').addEventListener('click',async()=>{
-    archiveMeta.lastExportAt=new Date().toISOString();archiveMeta.lastExportCount=savedSpecimens.length;archiveMeta.lastExportRevision=archiveMeta.revision;await persistArchive();renderBackup();
-    const payload={app:'Lakeglass',version:5,schemaVersion:5,logicVersion:LOGIC_VERSION,accessionSystem:'per-color',accessionCounters:{...accessionCounters},archiveMeta:{...archiveMeta},exportedAt:archiveMeta.lastExportAt,specimens:savedSpecimens};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`lakeglass-collection-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+  root.querySelector('#exportCollectionBtn').addEventListener('click',()=>{
+    const payload={app:'Lakeglass',version:4,accessionSystem:'per-color',accessionCounters:{...accessionCounters},exportedAt:new Date().toISOString(),specimens:savedSpecimens};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='lakeglass-collection.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),0);
   });
 
-  const importInput=root.querySelector('#importCollectionFile');root.querySelector('#importCollectionBtn').addEventListener('click',()=>importInput.click());
-  importInput.addEventListener('change',()=>{const file=importInput.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=async()=>{try{const parsed=JSON.parse(String(reader.result||''));const rows=Array.isArray(parsed)?parsed:parsed.specimens;if(!Array.isArray(rows))throw new Error('Invalid archive');savedSpecimens.splice(0,savedSpecimens.length,...normalizeRows(rows.slice(0,1000)));Object.keys(accessionCounters).forEach(k=>delete accessionCounters[k]);if(parsed.accessionCounters&&typeof parsed.accessionCounters==='object')Object.entries(parsed.accessionCounters).forEach(([k,v])=>{const n=Number(v);if(Number.isInteger(n)&&n>0)accessionCounters[k]=n;});mergeCounters();archiveMeta.revision=(Number(archiveMeta.revision)||0)+1;archiveMeta.lastExportAt=parsed.exportedAt||new Date().toISOString();archiveMeta.lastExportCount=savedSpecimens.length;archiveMeta.lastExportRevision=archiveMeta.revision;await persistArchive();renderAll();show('collection');}catch(err){window.alert('That file is not a valid Lakeglass collection export.');}importInput.value='';};reader.readAsText(file);});
+  const importInput=root.querySelector('#importCollectionFile');
+  root.querySelector('#importCollectionBtn').addEventListener('click',()=>importInput.click());
+  importInput.addEventListener('change',()=>{
+    const file=importInput.files&&importInput.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.addEventListener('load',()=>{
+      try{
+        const parsed=JSON.parse(String(reader.result||''));
+        const rows=Array.isArray(parsed)?parsed:parsed.specimens;
+        if(!Array.isArray(rows)) throw new Error('Invalid archive');
+        const raw=rows.slice(0,500).filter(d=>d&&typeof d==='object').map((d,i)=>({
+          key:String(d.key||`imported-${Date.now()}-${i}`),
+          id:String(d.id||'').slice(0,80),
+          accessionColor:String(d.accessionColor||d.colorId||'').slice(0,40),
+          accessionNumber:Number(d.accessionNumber)||null,
+          name:String(d.name||'Imported specimen').slice(0,120),
+          color:String(d.color||'#8cc9c5').slice(0,40),
+          provenance:String(d.provenance||'Not recorded').slice(0,220),
+          period:String(d.period||'Undetermined').slice(0,160),
+          rarity:String(d.rarity||'Not recorded').slice(0,80),
+          source:String(d.source||'Unresolved').slice(0,160),
+          notes:String(d.notes||'No identification notes recorded.').slice(0,1200)
+        }));
+        const normalized=normalizeAccessionRows(raw);
+        savedSpecimens.splice(0,savedSpecimens.length,...normalized);
+        Object.keys(accessionCounters).forEach(key=>delete accessionCounters[key]);
+        if(parsed&&parsed.accessionCounters&&typeof parsed.accessionCounters==='object'){
+          Object.entries(parsed.accessionCounters).forEach(([key,value])=>{
+            const n=Number(value);
+            if(Number.isInteger(n)&&n>0) accessionCounters[key]=n;
+          });
+        }
+        mergeCountersFromSpecimens();
+        persistSavedSpecimens();
+        renderCollection();
+        show('collection');
+      }catch(err){
+        window.alert('That file is not a valid Lakeglass collection export.');
+      }
+      importInput.value='';
+    });
+    reader.readAsText(file);
+  });
 
-  function renderAll(){renderHome();renderCollection();}
+  root.querySelector('#saveSpecimenBtn').addEventListener('click',()=>{
+    const color=GLASS_COLORS.find(c=>c.id===state.color)||GLASS_COLORS[2];
+    const region=REGIONS[state.region]||REGIONS.unsure;
+    const reading=evaluateSpecimen(color);
+    const place=root.querySelector('#foundAt').value.trim();
+    const date=root.querySelector('#foundDate').value;
+    const note=root.querySelector('#collectorNote').value.trim();
+    const provenance=place?`${place} · ${region.label}`:region.label;
+    const detailNotes=[
+      reading.evidence.slice(0,3).join(' '),
+      note?`Collector note: ${note}`:'',
+      date?`Found ${new Date(date+'T00:00:00').toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}.`:''
+    ].filter(Boolean).join(' ');
+    const accession=nextAccession(color.id);
+    currentSpecimenCode=accession.id;
+    accessionCounters[color.id]=accession.number;
 
-  initColorChoices();renderDynamicQuestions();renderAll();restoreArchive();
+    savedSpecimens.unshift({
+      key:`saved-${Date.now()}`,
+      id:accession.id,
+      accessionColor:color.id,
+      accessionNumber:accession.number,
+      name:color.name,
+      color:color.hex,
+      provenance,
+      period:periodReading(),
+      rarity:`${color.rarity} / 10`,
+      source:reading.label,
+      notes:detailNotes||'Saved from a Lakeglass field reading.'
+    });
 
-  if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{}));
+    persistSavedSpecimens();
+    renderCollection();
+    show('collection');
+  });
+
+  renderCollection();
+  restoreSavedSpecimens();
 })();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
