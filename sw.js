@@ -1,9 +1,16 @@
-const CACHE_NAME = 'lakeglass-recovery-v13';
+const CACHE_NAME = 'lakeglass-v5-production-1';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
-  './base.css',
+  './archive.css',
+  './main-boot.js',
+  './v5-shell.html',
+  './v5-app.js',
+  './v5-data.js',
+  './v5-storage-shim.js',
+  './recover.html',
+  './legacy.html',
   './app.js',
   './data.js',
   './manifest.webmanifest',
