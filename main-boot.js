@@ -183,6 +183,10 @@
       homeButton.click();
       if(!interactionWorked) throw new Error('Lakeglass loaded visually, but its interaction controls did not attach.');
 
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
+      }
+
       const status=document.getElementById('v5StorageStatus');
       if(status){
         status.textContent=originalRows.length
