@@ -1,0 +1,169 @@
+name: Clarify glass diagnostic labels
+on:
+  push:
+    paths:
+      - '.github/workflows/clarify-diagnostic-labels.yml'
+permissions:
+  contents: write
+jobs:
+  clarify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rewrite diagnostics in plain language
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app_path=Path('v5-app.js')
+          app=app_path.read_text()
+
+          start=app.index('  function diagnosticConfig(){')
+          end=app.index('\n\n  const DATING_QUESTIONS=', start)
+          new_func=r'''  function diagnosticConfig(){
+    if(state.mark==='letters') return {
+      key:'embossing',
+      question:'What can you actually make out in the mark?',
+      help:'Choose what you can physically see. You can transcribe the surviving mark after selecting a type.',
+      options:[
+        ['letters','Letters or part of a word','Raised or indented alphabetic characters, even if only one or two survive.'],
+        ['numbers','Numbers or a date code','Digits by themselves or grouped with letters; these can be mold, plant, capacity, or date codes.'],
+        ['symbol','Logo or picture-like symbol','An emblem, monogram, geometric logo, crest, or other non-letter symbol.'],
+        ['maker','Small maker’s mark or base code','A compact manufacturer symbol, plant code, or code usually found on a bottle base or heel.'],
+        ['unclear','Too little survives to tell','Only a partial bump, stroke, or fragment of a mark remains.']
+      ]
+    };
+    if(state.mark==='vents') return {
+      key:'vents',
+      question:'How many tiny mold vent dots can you see?',
+      help:'Vent marks are tiny round dots made by the bottle mold—not trapped air bubbles inside the glass.',
+      options:[
+        ['single','Only one pair or a few tiny vent dots','A very small number of round mold dots in one or two places.'],
+        ['multiple','Many vent dots around the body or lettering','Repeated tiny round dots distributed around embossing or other parts of the bottle.'],
+        ['unclear','Not enough survives to tell','The marks are too worn, partial, or ambiguous to count confidently.']
+      ]
+    };
+    if(state.form==='rim'||state.form==='neck') return {
+      key:'finish',
+      question:'If this is part of the bottle or jar opening, what does the lip look like?',
+      help:'Look only at the top opening where a cap, cork, or closure attached. If too little of the opening survives, choose the last option.',
+      options:[
+        ['applied','Extra ring of glass added around the lip (applied finish)','The lip looks like a separate collar or band of glass was added onto the neck.'],
+        ['tooled','Smooth hand-shaped lip; mold seam stops below it (tooled finish)','The lip is smoothed or shaped, but the vertical mold seam does not continue through the very top.'],
+        ['seamthrough','Vertical mold seam runs all the way through the lip','A seam line continues up the neck and across/through the top finish—a strong machine-made clue.'],
+        ['crown','Rounded lip for a pry-off metal bottle cap (crown finish)','Looks like a soda/beer bottle mouth: a rounded top with a bead or ring that a crimped metal cap grabbed.'],
+        ['screw','Raised spiral threads for a twist-on cap (screw-thread finish)','You can see helical/spiral ridges around the neck or mouth where a cap would screw on.'],
+        ['unclear','Not enough of the bottle opening survives','The shard includes only part of the neck/lip, or weathering makes the closure type uncertain.']
+      ]
+    };
+    if(state.form==='base') return {
+      key:'base',
+      question:'What physical feature can you see on the bottle or jar base?',
+      help:'Look for scars, seams, rings, raised marks, or texture. These are often much more useful for dating than color alone.',
+      options:[
+        ['pontil','Rough or polished scar near the center (pontil scar)','An irregular rough patch, circular scar, or polished spot where a pontil rod was attached during hand finishing.'],
+        ['owens','Curved feathered or suction-like scar (Owens scar)','A curved circular/oval scar—often sweeping or feathered and sometimes off-center—from the Owens automatic bottle process.'],
+        ['seamedge','Mold seam visible within the outer edge of the base','A molded seam line reaches into the base/heel area rather than the base being completely smooth.'],
+        ['machine','Regular concentric rings or other neat machine marks','Repeated circular rings, valve-like marks, or other regular features consistent with machine manufacture.'],
+        ['embossed','Raised letters, numbers, or logo on the base','Embossed maker, plant, mold, capacity, or date information.'],
+        ['stipple','Dense field of tiny raised dots (stippled base)','Many evenly spaced little bumps or dots covering part of the base surface.'],
+        ['plain','Base looks smooth with no obvious feature','No scar, raised mark, stippling, or useful seam is visible.'],
+        ['unclear','Not enough of the base survives to tell','The base is too incomplete or worn to classify confidently.']
+      ]
+    };
+    if(state.color==='lavender') return {
+      key:'manganese',
+      question:'What does the lavender color actually look like?',
+      help:'This helps separate possible sun-purpled manganese-decolorized clear glass from glass that was intentionally made purple.',
+      options:[
+        ['solarized','Pale, faint, or uneven lavender cast','The purple looks subtle or patchy, as if clear glass picked up an amethyst tint.'],
+        ['deep','Deep, even purple throughout the shard','The color is strong and uniform through the glass rather than a faint surface/edge cast.'],
+        ['unclear','Hard to tell','Lighting, thickness, or weathering makes the color pattern uncertain.']
+      ]
+    };
+    if(state.color==='black') return {
+      key:'backlight',
+      question:'Hold it to a very bright light. What color glows through?',
+      help:'Most “black” bottle glass is actually extremely dark olive, amber, blue, or purple glass.',
+      options:[
+        ['olive','Olive or green shows through','Thin edges or the center glow deep green/olive under strong backlight.'],
+        ['brown','Brown or amber shows through','Thin edges or the center glow amber/brown under strong backlight.'],
+        ['bluepurple','Blue or purple shows through','A deep blue, cobalt, violet, or purple undertone appears.'],
+        ['black','It still looks black even at a thin edge','No underlying color is obvious even under strong light.'],
+        ['unclear','Could not tell','The shard is too thick, light is insufficient, or the result is ambiguous.']
+      ]
+    };
+    if(state.color==='milkglass') return {
+      key:'milk',
+      question:'When you hold it to a bright light, how much light passes through?',
+      help:'True milk glass is opaque or softly translucent; heavily frosted clear glass can look white on the beach.',
+      options:[
+        ['opaque','No light passes through','The shard stays solid white/opaque even against a bright light.'],
+        ['soft','Only a diffuse glow passes through','Light softens through the shard, but you cannot see clearly through it.'],
+        ['clear','Light passes clearly through','This may be heavily frosted clear glass rather than true milk glass.'],
+        ['unclear','Hard to tell','Thickness or lighting makes the opacity uncertain.']
+      ]
+    };
+    if(state.color==='slag') return {
+      key:'slag',
+      question:'Does the piece look like part of a vessel, or more like an irregular glassy rock?',
+      help:'Industrial slag often has inclusions, bubbles, swirls, or irregular rock-like mass instead of a bottle/jar wall.',
+      options:[
+        ['stone','Irregular rock-like piece with inclusions','The shape is lumpy or stone-like and may contain bubbles, grit, streaks, or other inclusions.'],
+        ['glassy','Smooth glassy lump with no clear vessel shape','It looks melted or glassy but does not preserve a regular bottle, jar, plate, or window geometry.'],
+        ['vessel','Clearly part of a bottle, jar, or other vessel','Regular curvature, flat wall geometry, rim, base, or another manufactured vessel form survives.'],
+        ['unclear','Hard to tell','Weathering or fragmentation makes the original form uncertain.']
+      ]
+    };
+    return null;
+  }'''
+          app=app[:start]+new_func+app[end:]
+
+          old="config.options.forEach(([value,label])=>{\n      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.diagnostic===value?' selected':'');btn.dataset.value=value;btn.textContent=label;"
+          new="config.options.forEach(([value,label,description])=>{\n      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.diagnostic===value?' selected':'');btn.dataset.value=value;btn.innerHTML=description?`${label}<small>${description}</small>`:label;"
+          if old not in app: raise SystemExit('Diagnostic option renderer not found')
+          app=app.replace(old,new,1)
+
+          old="config.options.forEach(([value,label])=>{\n      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.datingAnswer===value?' selected':'');btn.dataset.value=value;btn.textContent=label;"
+          new="config.options.forEach(([value,label,description])=>{\n      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.datingAnswer===value?' selected':'');btn.dataset.value=value;btn.innerHTML=description?`${label}<small>${description}</small>`:label;"
+          if old not in app: raise SystemExit('Dating option renderer not found')
+          app=app.replace(old,new,1)
+
+          old="finish:{applied:'Applied finish',tooled:'Tooled finish',seamthrough:'Seam continues through finish',crown:'Crown-cap style finish',screw:'Screw-thread finish',unclear:'Finish unclear'},\n      base:{pontil:'Pontil scar',owens:'Owens suction scar',seamedge:'Mold seam within outer base edge',machine:'Machine-made base feature',embossed:'Embossed base mark',stipple:'Stippled / textured base',plain:'Plain base',unclear:'Base feature unclear'},"
+          new="finish:{applied:'Added glass ring at lip (applied finish)',tooled:'Smooth hand-shaped lip (tooled finish)',seamthrough:'Mold seam runs through lip (machine-made)',crown:'Pry-off cap lip (crown finish)',screw:'Twist-on cap threads (screw-thread finish)',unclear:'Bottle opening / finish unclear'},\n      base:{pontil:'Center attachment scar (pontil scar)',owens:'Curved suction scar (Owens process)',seamedge:'Mold seam visible at outer base edge',machine:'Regular rings / machine-made base feature',embossed:'Raised maker / plant / date mark',stipple:'Field of tiny raised dots (stippled base)',plain:'Smooth base with no obvious feature',unclear:'Base feature unclear'},"
+          if old not in app: raise SystemExit('Diagnostic label map not found')
+          app=app.replace(old,new,1)
+
+          app_path.write_text(app)
+
+          shell_path=Path('v5-shell.html')
+          shell=shell_path.read_text()
+          replacements={
+            '<button class="choice" type="button" data-value="rim">Rim / lip / finish<small>high-value manufacturing clue</small></button>':'<button class="choice" type="button" data-value="rim">Bottle/jar opening (rim or lip)<small>top edge where a cap, cork, or other closure attached</small></button>',
+            '<button class="choice" type="button" data-value="vents">Small molded vent dots<small>manufacturing clue on some bottles</small></button>':'<button class="choice" type="button" data-value="vents">Tiny round mold dots (vent marks)<small>small dots made by the mold; not bubbles trapped inside the glass</small></button>',
+            '<div class="group-label">07 · Diagnostic feature</div>':'<div class="group-label">07 · One more physical clue</div>',
+            '<p class="diagnostic-help" id="diagnosticHelp">Choose the closest physical feature you can see.</p>':'<p class="diagnostic-help" id="diagnosticHelp">Choose what you can physically see. Technical terms are shown in parentheses.</p>',
+            '<p class="lede">The best dates usually come from manufacturing evidence rather than generic shard shape.</p>':'<p class="lede">The best dates usually come from manufacturing evidence rather than generic shard shape. Each technical term below is paired with the physical thing you should actually look for.</p>',
+            '<div class="guide-card"><b>Pontil scars</b><p>On utilitarian bottles, a pontil usually points to the Civil War era or earlier and is almost always pre-1870s.</p></div>':'<div class="guide-card"><b>Pontil scar · what to look for</b><p>A rough, circular, or polished attachment scar near the center of a bottle base where a pontil rod once held it. On utilitarian bottles, this usually points to the Civil War era or earlier and is almost always pre-1870s.</p></div>',
+            '<div class="guide-card"><b>Applied vs. tooled finish</b><p>Applied finishes typically date about 1820–1890. Tooled finishes dominate after 1890 and largely disappear by the early 1920s.</p></div>':'<div class="guide-card"><b>Applied vs. tooled lip</b><p><strong>Applied:</strong> the bottle opening looks like an extra ring/collar of glass was added. <strong>Tooled:</strong> the lip is smoothly shaped and the mold seam stops below it. Applied finishes typically date about 1820–1890; tooled finishes dominate after 1890 and largely disappear by the early 1920s.</p></div>',
+            '<div class="guide-card"><b>Owens suction scar</b><p>A feathered circular or oval base scar identifies the Owens automatic-bottle process beginning in the early 20th century.</p></div>':'<div class="guide-card"><b>Owens suction scar · what to look for</b><p>A curved, feathered circular/oval scar—often sweeping across the base and sometimes off-center. It identifies the Owens automatic-bottle process beginning in the early 20th century.</p></div>',
+            '<div class="guide-card"><b>Vent marks</b><p>Mouth-blown bottles with air-vent dots generally date after the mid/late 1880s; multiple vents often favor roughly 1905–1920.</p></div>':'<div class="guide-card"><b>Vent marks · what to look for</b><p>Tiny round dots formed by the mold on the bottle surface; they are different from bubbles trapped inside the glass. Air-vented mouth-blown bottles generally date after the mid/late 1880s; multiple vents often favor roughly 1905–1920.</p></div>',
+            '<div class="guide-card"><b>Solarized lavender</b><p>A pale or uneven amethyst cast can support manganese-decolorized colorless glass, commonly around 1890–1920.</p></div>':'<div class="guide-card"><b>Solarized lavender · what to look for</b><p>A faint, pale, or uneven amethyst cast in glass that otherwise looks clear can support manganese-decolorized colorless glass, commonly around 1890–1920. Deep uniform purple is a different clue.</p></div>'
+          }
+          for old,new in replacements.items():
+            if old not in shell: raise SystemExit(f'Shell text not found: {old[:60]}')
+            shell=shell.replace(old,new,1)
+
+          anchor='<div class="guide-card"><b>Applied vs. tooled lip</b><p><strong>Applied:</strong> the bottle opening looks like an extra ring/collar of glass was added. <strong>Tooled:</strong> the lip is smoothly shaped and the mold seam stops below it. Applied finishes typically date about 1820–1890; tooled finishes dominate after 1890 and largely disappear by the early 1920s.</p></div>'
+          closure='<div class="guide-card"><b>Crown vs. screw-thread opening</b><p><strong>Crown finish:</strong> a rounded soda/beer-style lip with a bead that a pry-off crimped metal cap grabbed. <strong>Screw-thread finish:</strong> raised spiral threads around the neck for a twist-on cap.</p></div>'
+          shell=shell.replace(anchor,anchor+'\n          '+closure,1)
+          shell_path.write_text(shell)
+          PY
+          node --check v5-app.js
+      - name: Commit clearer terminology
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add v5-app.js v5-shell.html
+          git commit -m "Explain glass diagnostic terms in plain language"
+          git push
