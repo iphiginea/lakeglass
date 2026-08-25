@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lakeglass-v5-production-1';
+const CACHE_NAME = 'lakeglass-v5-production-2';
 const APP_SHELL = [
   './',
   './index.html',
