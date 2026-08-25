@@ -112,14 +112,100 @@
   }
 
   function diagnosticConfig(){
-    if(state.mark==='letters') return {key:'embossing',question:'What survives in the mark?',help:'Transcribe exactly what you can see, even if incomplete.',options:[['letters','Letters / word'],['numbers','Numbers / date code'],['symbol','Logo / symbol'],['maker','Maker mark or base code'],['unclear','Too partial to classify']]};
-    if(state.mark==='vents') return {key:'vents',question:'How are the vent marks arranged?',help:'Small mold-formed vent dots can help date mouth-blown production.',options:[['single','One simple pair / very few vents'],['multiple','Multiple vents around body / embossing'],['unclear','Hard to tell']]};
-    if(state.form==='rim'||state.form==='neck') return {key:'finish',question:'What survives at the finish or lip?',help:'Finish construction and seam behavior can be highly chronological.',options:[['applied','Applied finish / added glass at lip'],['tooled','Tooled finish / shaped after blowing'],['seamthrough','Mold seam continues through finish'],['crown','Crown-cap style finish'],['screw','Screw-thread finish'],['unclear','Hard to tell']]};
-    if(state.form==='base') return {key:'base',question:'What is visible on the base or heel?',help:'Pontils, Owens scars, mold seams, and marks can strongly narrow manufacture.',options:[['pontil','Rough / polished pontil scar'],['owens','Feathered Owens suction scar'],['seamedge','Mold seam within outer base edge'],['machine','Concentric / machine-made base feature'],['embossed','Embossed maker / plant / date mark'],['stipple','Stippled / textured base'],['plain','No obvious feature'],['unclear','Hard to tell']]};
-    if(state.color==='lavender') return {key:'manganese',question:'How does the lavender color appear?',help:'A pale or uneven cast can support solarized manganese-decolorized glass; deep even purple may be intentional.',options:[['solarized','Pale / uneven lavender cast'],['deep','Deep, even purple throughout'],['unclear','Hard to tell']]};
-    if(state.color==='black') return {key:'backlight',question:'What color appears under strong backlight?',help:'Most “black” glass is actually a very deep underlying color.',options:[['olive','Olive / green'],['brown','Brown / amber'],['bluepurple','Blue / purple'],['black','Still appears black'],['unclear','Hard to tell']]};
-    if(state.color==='milkglass') return {key:'milk',question:'Does light pass through?',help:'True milk glass is opaque rather than simply heavily frosted clear glass.',options:[['opaque','No light passes through'],['soft','Only a soft glow passes'],['clear','Light passes clearly'],['unclear','Hard to tell']]};
-    if(state.color==='slag') return {key:'slag',question:'Does it look glassy or stone-like?',help:'Industrial slag often has inclusions or irregular rock-like mass rather than vessel geometry.',options:[['stone','Stone-like with inclusions'],['glassy','Smooth glassy mass'],['vessel','Clearly vessel-like curvature'],['unclear','Hard to tell']]};
+    if(state.mark==='letters') return {
+      key:'embossing',
+      question:'What can you actually make out in the mark?',
+      help:'Choose what you can physically see. You can transcribe the surviving mark after selecting a type.',
+      options:[
+        ['letters','Letters or part of a word','Raised or indented alphabetic characters, even if only one or two survive.'],
+        ['numbers','Numbers or a date code','Digits by themselves or grouped with letters; these can be mold, plant, capacity, or date codes.'],
+        ['symbol','Logo or picture-like symbol','An emblem, monogram, geometric logo, crest, or other non-letter symbol.'],
+        ['maker','Small maker’s mark or base code','A compact manufacturer symbol, plant code, or code usually found on a bottle base or heel.'],
+        ['unclear','Too little survives to tell','Only a partial bump, stroke, or fragment of a mark remains.']
+      ]
+    };
+    if(state.mark==='vents') return {
+      key:'vents',
+      question:'How many tiny mold vent dots can you see?',
+      help:'Vent marks are tiny round dots made by the bottle mold—not trapped air bubbles inside the glass.',
+      options:[
+        ['single','Only one pair or a few tiny vent dots','A very small number of round mold dots in one or two places.'],
+        ['multiple','Many vent dots around the body or lettering','Repeated tiny round dots distributed around embossing or other parts of the bottle.'],
+        ['unclear','Not enough survives to tell','The marks are too worn, partial, or ambiguous to count confidently.']
+      ]
+    };
+    if(state.form==='rim'||state.form==='neck') return {
+      key:'finish',
+      question:'If this is part of the bottle or jar opening, what does the lip look like?',
+      help:'Look only at the top opening where a cap, cork, or closure attached. If too little of the opening survives, choose the last option.',
+      options:[
+        ['applied','Extra ring of glass added around the lip (applied finish)','The lip looks like a separate collar or band of glass was added onto the neck.'],
+        ['tooled','Smooth hand-shaped lip; mold seam stops below it (tooled finish)','The lip is smoothed or shaped, but the vertical mold seam does not continue through the very top.'],
+        ['seamthrough','Vertical mold seam runs all the way through the lip','A seam line continues up the neck and across/through the top finish—a strong machine-made clue.'],
+        ['crown','Rounded lip for a pry-off metal bottle cap (crown finish)','Looks like a soda/beer bottle mouth: a rounded top with a bead or ring that a crimped metal cap grabbed.'],
+        ['screw','Raised spiral threads for a twist-on cap (screw-thread finish)','You can see helical/spiral ridges around the neck or mouth where a cap would screw on.'],
+        ['unclear','Not enough of the bottle opening survives','The shard includes only part of the neck/lip, or weathering makes the closure type uncertain.']
+      ]
+    };
+    if(state.form==='base') return {
+      key:'base',
+      question:'What physical feature can you see on the bottle or jar base?',
+      help:'Look for scars, seams, rings, raised marks, or texture. These are often much more useful for dating than color alone.',
+      options:[
+        ['pontil','Rough or polished scar near the center (pontil scar)','An irregular rough patch, circular scar, or polished spot where a pontil rod was attached during hand finishing.'],
+        ['owens','Curved feathered or suction-like scar (Owens scar)','A curved circular/oval scar—often sweeping or feathered and sometimes off-center—from the Owens automatic bottle process.'],
+        ['seamedge','Mold seam visible within the outer edge of the base','A molded seam line reaches into the base/heel area rather than the base being completely smooth.'],
+        ['machine','Regular concentric rings or other neat machine marks','Repeated circular rings, valve-like marks, or other regular features consistent with machine manufacture.'],
+        ['embossed','Raised letters, numbers, or logo on the base','Embossed maker, plant, mold, capacity, or date information.'],
+        ['stipple','Dense field of tiny raised dots (stippled base)','Many evenly spaced little bumps or dots covering part of the base surface.'],
+        ['plain','Base looks smooth with no obvious feature','No scar, raised mark, stippling, or useful seam is visible.'],
+        ['unclear','Not enough of the base survives to tell','The base is too incomplete or worn to classify confidently.']
+      ]
+    };
+    if(state.color==='lavender') return {
+      key:'manganese',
+      question:'What does the lavender color actually look like?',
+      help:'This helps separate possible sun-purpled manganese-decolorized clear glass from glass that was intentionally made purple.',
+      options:[
+        ['solarized','Pale, faint, or uneven lavender cast','The purple looks subtle or patchy, as if clear glass picked up an amethyst tint.'],
+        ['deep','Deep, even purple throughout the shard','The color is strong and uniform through the glass rather than a faint surface/edge cast.'],
+        ['unclear','Hard to tell','Lighting, thickness, or weathering makes the color pattern uncertain.']
+      ]
+    };
+    if(state.color==='black') return {
+      key:'backlight',
+      question:'Hold it to a very bright light. What color glows through?',
+      help:'Most “black” bottle glass is actually extremely dark olive, amber, blue, or purple glass.',
+      options:[
+        ['olive','Olive or green shows through','Thin edges or the center glow deep green/olive under strong backlight.'],
+        ['brown','Brown or amber shows through','Thin edges or the center glow amber/brown under strong backlight.'],
+        ['bluepurple','Blue or purple shows through','A deep blue, cobalt, violet, or purple undertone appears.'],
+        ['black','It still looks black even at a thin edge','No underlying color is obvious even under strong light.'],
+        ['unclear','Could not tell','The shard is too thick, light is insufficient, or the result is ambiguous.']
+      ]
+    };
+    if(state.color==='milkglass') return {
+      key:'milk',
+      question:'When you hold it to a bright light, how much light passes through?',
+      help:'True milk glass is opaque or softly translucent; heavily frosted clear glass can look white on the beach.',
+      options:[
+        ['opaque','No light passes through','The shard stays solid white/opaque even against a bright light.'],
+        ['soft','Only a diffuse glow passes through','Light softens through the shard, but you cannot see clearly through it.'],
+        ['clear','Light passes clearly through','This may be heavily frosted clear glass rather than true milk glass.'],
+        ['unclear','Hard to tell','Thickness or lighting makes the opacity uncertain.']
+      ]
+    };
+    if(state.color==='slag') return {
+      key:'slag',
+      question:'Does the piece look like part of a vessel, or more like an irregular glassy rock?',
+      help:'Industrial slag often has inclusions, bubbles, swirls, or irregular rock-like mass instead of a bottle/jar wall.',
+      options:[
+        ['stone','Irregular rock-like piece with inclusions','The shape is lumpy or stone-like and may contain bubbles, grit, streaks, or other inclusions.'],
+        ['glassy','Smooth glassy lump with no clear vessel shape','It looks melted or glassy but does not preserve a regular bottle, jar, plate, or window geometry.'],
+        ['vessel','Clearly part of a bottle, jar, or other vessel','Regular curvature, flat wall geometry, rim, base, or another manufactured vessel form survives.'],
+        ['unclear','Hard to tell','Weathering or fragmentation makes the original form uncertain.']
+      ]
+    };
     return null;
   }
 
@@ -142,8 +228,8 @@
     root.querySelector('#diagnosticHelp').textContent=config.help;
     const choices=root.querySelector('#diagnosticChoices');
     choices.innerHTML='';
-    config.options.forEach(([value,label])=>{
-      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.diagnostic===value?' selected':'');btn.dataset.value=value;btn.textContent=label;
+    config.options.forEach(([value,label,description])=>{
+      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.diagnostic===value?' selected':'');btn.dataset.value=value;btn.innerHTML=description?`${label}<small>${description}</small>`:label;
       btn.addEventListener('click',()=>{state.diagnostic=value;choices.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');updateDiagnosticTextVisibility();});
       choices.appendChild(btn);
     });
@@ -167,8 +253,8 @@
     root.querySelector('#datingQuestion').textContent=config.question;
     root.querySelector('#datingHelp').textContent=config.help;
     const choices=root.querySelector('#datingChoices');choices.innerHTML='';
-    config.options.forEach(([value,label])=>{
-      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.datingAnswer===value?' selected':'');btn.dataset.value=value;btn.textContent=label;
+    config.options.forEach(([value,label,description])=>{
+      const btn=document.createElement('button');btn.type='button';btn.className='choice'+(state.datingAnswer===value?' selected':'');btn.dataset.value=value;btn.innerHTML=description?`${label}<small>${description}</small>`:label;
       btn.addEventListener('click',()=>{state.datingAnswer=value;choices.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');});
       choices.appendChild(btn);
     });
@@ -311,8 +397,8 @@
     const labels={
       embossing:{letters:'Readable letters / word',numbers:'Numbers / date code',symbol:'Logo / symbol',maker:'Maker mark / base code',unclear:'Mark unclear'},
       vents:{single:'One simple pair / few vent marks',multiple:'Multiple vent marks',unclear:'Vent pattern unclear'},
-      finish:{applied:'Applied finish',tooled:'Tooled finish',seamthrough:'Seam continues through finish',crown:'Crown-cap style finish',screw:'Screw-thread finish',unclear:'Finish unclear'},
-      base:{pontil:'Pontil scar',owens:'Owens suction scar',seamedge:'Mold seam within outer base edge',machine:'Machine-made base feature',embossed:'Embossed base mark',stipple:'Stippled / textured base',plain:'Plain base',unclear:'Base feature unclear'},
+      finish:{applied:'Added glass ring at lip (applied finish)',tooled:'Smooth hand-shaped lip (tooled finish)',seamthrough:'Mold seam runs through lip (machine-made)',crown:'Pry-off cap lip (crown finish)',screw:'Twist-on cap threads (screw-thread finish)',unclear:'Bottle opening / finish unclear'},
+      base:{pontil:'Center attachment scar (pontil scar)',owens:'Curved suction scar (Owens process)',seamedge:'Mold seam visible at outer base edge',machine:'Regular rings / machine-made base feature',embossed:'Raised maker / plant / date mark',stipple:'Field of tiny raised dots (stippled base)',plain:'Smooth base with no obvious feature',unclear:'Base feature unclear'},
       manganese:{solarized:'Pale / uneven solarized lavender',deep:'Deep even purple',unclear:'Lavender origin unclear'},
       backlight:{olive:'Backlights olive / green',brown:'Backlights brown / amber',bluepurple:'Backlights blue / purple',black:'Still appears black',unclear:'Backlit color unclear'},
       milk:{opaque:'Confirmed opaque milk glass',soft:'Soft glow only',clear:'Transmits clear light',unclear:'Opacity clue unclear'},
