@@ -1,23 +1,24 @@
-name: Apply diagnostic wording patch
+name: Lakeglass JavaScript check
 on:
   push:
     paths:
+      - 'main-boot.js'
+      - 'v5-app.js'
+      - 'v5-data.js'
+      - 'v5-storage-shim.js'
+      - 'v5-shell.html'
       - '.github/workflows/v5-syntax-check.yml'
+  workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  patch:
+  syntax:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply terminology rewrite
-        run: python .github/scripts/clarify_diagnostics.py
-      - name: Check JavaScript
-        run: node --check v5-app.js
-      - name: Commit clearer labels
+      - name: Check production JavaScript
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add v5-app.js v5-shell.html
-          git commit -m "Explain glass diagnostic terms in plain language"
-          git push
+          node --check main-boot.js
+          node --check v5-app.js
+          node --check v5-data.js
+          node --check v5-storage-shim.js
