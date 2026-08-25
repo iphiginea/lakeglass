@@ -1,0 +1,19 @@
+name: V5 syntax check
+on:
+  push:
+    paths:
+      - '.github/workflows/v5-syntax-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check archived V5 JavaScript
+        run: |
+          git show 75562c0a67c7fae5f86fe164a7865ce0f21a5a75:app.js > /tmp/v5-app.js
+          node --check /tmp/v5-app.js
