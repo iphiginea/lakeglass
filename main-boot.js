@@ -154,19 +154,6 @@
       document.body.innerHTML='';
       document.body.appendChild(document.importNode(root,true));
 
-      const fieldNote=document.querySelector('[data-screen="home"] .field-note');
-      if(fieldNote){
-        const note=document.createElement('div');
-        note.className='v5-source-note';
-        note.id='v5StorageStatus';
-        if(originalRows.length){
-          note.textContent=`Archive ready · ${activeCount} records · protected recovery archive retained`;
-        }else{
-          note.textContent=`Archive ready · ${activeCount} records · saved on this device`;
-        }
-        fieldNote.before(note);
-      }
-
       await loadScript('./v5-data.js?main=1');
       await loadScript('./v5-storage-shim.js?main=1');
       await loadScript('./v5-app.js?main=1');
@@ -185,13 +172,6 @@
 
       if('serviceWorker' in navigator){
         navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
-      }
-
-      const status=document.getElementById('v5StorageStatus');
-      if(status){
-        status.textContent=originalRows.length
-          ? `Lakeglass ready ✓ · protected recovery archive retained`
-          : `Lakeglass ready ✓ · on-device archive`;
       }
     }catch(err){
       renderFailure(err);
