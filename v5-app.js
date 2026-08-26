@@ -159,7 +159,7 @@
         ['embossed','Raised letters, numbers, or logo on the base','Embossed maker, plant, mold, capacity, or date information.'],
         ['stipple','Dense field of tiny raised dots (stippled base)','Many evenly spaced little bumps or dots covering part of the base surface.'],
         ['plain','Base looks smooth with no obvious feature','No scar, raised mark, stippling, or useful seam is visible.'],
-        ['unclear','Not enough of the base survives','The base is too incomplete or worn to classify confidently.']
+        ['unclear','Not enough of the base survives to tell','The base is too incomplete or worn to classify confidently.']
       ]
     };
     if(state.color==='lavender') return {
