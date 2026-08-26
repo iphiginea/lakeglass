@@ -103,7 +103,7 @@
     const wrap=root.querySelector(`[data-group="${group}"]`);
     if(!wrap) return;
     wrap.querySelectorAll('.choice').forEach(x=>x.classList.toggle('selected',x.dataset.value===value));
-    state[group.dataset.group]=value||null;
+    state[group]=value||null;
   }
 
   function selectColor(id){
@@ -425,7 +425,7 @@
     if(key==='finish'&&d==='crown') return r('Crown finish · post-1892; early applied examples ca. 1895–1910','Strong',8,'The crown closure was patented in 1892; early applied crown finishes are documented around 1895–1910.');
     if(key==='finish'&&d==='screw') return r('Screw-thread finish · broad 20th-century tendency; closure type needed for precision','Moderate',6,'Threaded finishes span many container types and periods, so the surviving closure system matters.');
     if(key==='embossing'&&d&&d!=='unclear') return r('Maker / product mark present · exact research may narrow the date','Strong',9,'A transcription, logo, plant code, or date code can be more precise than color-based dating.');
-    if(key==='base'&&d==='embossed') return r('Embossed base mark present · maker research may narrow the date','Strong',9,'Base marks can identify manufacturer, plant, mold, capacity, or date information.');
+    if(key==='base'&&d==='embossed') return r('Embossed base mark present · maker research may narrow the date','Strong',9,'Base marks can identify manufacturer, plant, mold, or date information.');
 
     if(color==='lavender'){
       if(key==='manganese'&&d==='solarized') return r('ca. 1890–1920 probable · some manganese examples continue into the 1930s','Strong',9,'A pale or uneven solarized amethyst cast supports manganese-decolorized colorless glass.');
