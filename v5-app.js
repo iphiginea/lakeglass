@@ -3,7 +3,7 @@
   if(!root||!window.LAKEGLASS_DATA) return;
 
   const {GLASS_COLORS,REGIONS}=window.LAKEGLASS_DATA;
-  const LOGIC_VERSION='2026.08.24.3';
+  const LOGIC_VERSION='2026.08.26.1';
   const ARCHIVE_DB='lakeglass-archive';
   const ARCHIVE_STORE='collection';
   const LEGACY_DEMO_IDS=new Set(['LM-042','LM-041','LM-040','LM-039']);
@@ -103,7 +103,7 @@
     const wrap=root.querySelector(`[data-group="${group}"]`);
     if(!wrap) return;
     wrap.querySelectorAll('.choice').forEach(x=>x.classList.toggle('selected',x.dataset.value===value));
-    state[group]=value||null;
+    state[group.dataset.group]=value||null;
   }
 
   function selectColor(id){
@@ -425,7 +425,7 @@
     if(key==='finish'&&d==='crown') return r('Crown finish · post-1892; early applied examples ca. 1895–1910','Strong',8,'The crown closure was patented in 1892; early applied crown finishes are documented around 1895–1910.');
     if(key==='finish'&&d==='screw') return r('Screw-thread finish · broad 20th-century tendency; closure type needed for precision','Moderate',6,'Threaded finishes span many container types and periods, so the surviving closure system matters.');
     if(key==='embossing'&&d&&d!=='unclear') return r('Maker / product mark present · exact research may narrow the date','Strong',9,'A transcription, logo, plant code, or date code can be more precise than color-based dating.');
-    if(key==='base'&&d==='embossed') return r('Embossed base mark present · maker research may narrow the date','Strong',9,'Base marks can identify manufacturer, plant, mold, or date information.');
+    if(key==='base'&&d==='embossed') return r('Embossed base mark present · maker research may narrow the date','Strong',9,'Base marks can identify manufacturer, plant, mold, capacity, or date information.');
 
     if(color==='lavender'){
       if(key==='manganese'&&d==='solarized') return r('ca. 1890–1920 probable · some manganese examples continue into the 1930s','Strong',9,'A pale or uneven solarized amethyst cast supports manganese-decolorized colorless glass.');
@@ -505,7 +505,7 @@
     if(obs.diagnosticKey==='manganese'&&obs.diagnostic==='deep') add('decorative',3,'Deep even purple may have been intentionally colored.');
     if(obs.diagnosticKey==='milk'&&obs.diagnostic==='clear') cautions.push('Clear light transmission conflicts with true milk glass and suggests heavily frosted clear glass instead.');
     if(obs.diagnosticKey==='slag'&&obs.diagnostic==='vessel') cautions.push('Vessel-like curvature conflicts with an industrial-slag identification.');
-    if(obs.form==='flat'&&obs.mark!=='ripple') cautions.push('A small flat shard is not enough to identify window glass.');
+    if(obs.form==='flat'&&obs.mark!=='ripple') cautions.push('A flat, rounded beach-tumbled fragment can come from bottles, jars, tableware, or flat glass; flatness alone cannot identify window glass.');
 
     const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);const [top,second]=ranked;const margin=top[1]-second[1];
     let strength='Possible';if(top[1]===0) strength='Unresolved';else if(top[1]>=9&&margin>=3) strength='Distinctive match';else if(top[1]>=6&&margin>=2) strength='Strong match';else if(top[1]>=4) strength='Good match';
