@@ -159,7 +159,7 @@
         ['embossed','Raised letters, numbers, or logo on the base','Embossed maker, plant, mold, capacity, or date information.'],
         ['stipple','Dense field of tiny raised dots (stippled base)','Many evenly spaced little bumps or dots covering part of the base surface.'],
         ['plain','Base looks smooth with no obvious feature','No scar, raised mark, stippling, or useful seam is visible.'],
-        ['unclear','Not enough of the base survives to tell','The base is too incomplete or worn to classify confidently.']
+        ['unclear','Not enough of the base survives','The base is too incomplete or worn to classify confidently.']
       ]
     };
     if(state.color==='lavender') return {
@@ -577,13 +577,35 @@
     const beachSelect=root.querySelector('#filterBeach');const beachChosen=beachSelect.value;beachSelect.innerHTML='<option value="">All beaches</option>';[...new Set(savedSpecimens.map(specimenBeach).filter(Boolean))].sort().forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;beachSelect.appendChild(o);});beachSelect.value=beachChosen;
   }
 
-  function periodYears(period){return (String(period||'').match(/\b(1[7-9]\d{2}|20\d{2})\b/g)||[]).map(Number);}
-  function eraClass(d){const years=periodYears(d.interpretation?.period);if(!years.length)return 'broad';const min=Math.min(...years),max=Math.max(...years);if(max<1900)return 'pre1900';if(min>=1950)return '1950plus';if(min>=1900&&max<1950)return '1900-1949';return 'broad';}
+  function periodRange(period){
+    const text=String(period||'').toLowerCase().replace(/[–—‑]/g,'-');
+    const spans=[];const add=(start,end)=>{if(Number.isFinite(start)&&Number.isFinite(end))spans.push([start,end]);};
+    for(const match of text.matchAll(/\b(1[7-9]\d{2}|20\d{2})(s)?\b/g)){const y=Number(match[1]);add(y,match[2]?y+9:y);}
+    const centuryStarts={'18th':1700,'19th':1800,'20th':1900,'21st':2000};
+    for(const match of text.matchAll(/\b(?:(very early|early|mid|late)[ -]?)?(18th|19th|20th|21st)\b/g)){
+      const start=centuryStarts[match[2]],qualifier=match[1]||'';
+      if(qualifier==='very early')add(start,start+14);else if(qualifier==='early')add(start,start+24);else if(qualifier==='mid')add(start+25,start+74);else if(qualifier==='late')add(start+75,start+99);else add(start,start+99);
+    }
+    if(!spans.length)return null;
+    let start=Math.min(...spans.map(s=>s[0])),end=Math.max(...spans.map(s=>s[1]));
+    if(/\b(onward|present|modern|today)\b/.test(text))end=new Date().getFullYear();
+    return {start,end};
+  }
+  function periodYears(period){const range=periodRange(period);return range?[range.start,range.end]:[];}
+  function eraClasses(d){
+    const range=periodRange(d.interpretation?.period);const eras=new Set();
+    if(d.interpretation?.datingConfidence==='Broad'||!range)eras.add('broad');
+    if(!range)return eras;
+    if(range.start<1900)eras.add('pre1900');
+    if(range.end>=1900&&range.start<=1949)eras.add('1900-1949');
+    if(range.end>=1950)eras.add('1950plus');
+    return eras;
+  }
 
   function filteredRecords(){
     const q=root.querySelector('#collectionSearch').value.trim().toLowerCase();const color=root.querySelector('#filterColor').value;const beach=root.querySelector('#filterBeach').value;const era=root.querySelector('#filterEra').value;const status=root.querySelector('#filterStatus').value;const sort=root.querySelector('#sortCollection').value;
     let rows=savedSpecimens.filter(d=>{
-      if(color&&d.accessionColor!==color)return false;if(beach&&specimenBeach(d)!==beach)return false;if(era&&eraClass(d)!==era)return false;
+      if(color&&d.accessionColor!==color)return false;if(beach&&specimenBeach(d)!==beach)return false;if(era&&!eraClasses(d).has(era))return false;
       if(status==='diagnostic'&&d.interpretation?.datingConfidence!=='Diagnostic')return false;if(status==='unresolved'&&d.interpretation?.datingConfidence!=='Broad'&&d.interpretation?.source!=='Unresolved')return false;if(status==='legacy'&&!incompleteObservations(d))return false;
       if(q){const hay=[d.id,d.name,d.provenance,d.source,d.period,d.notes,d.observations?.diagnosticText,d.observations?.collectorNote].join(' ').toLowerCase();if(!hay.includes(q))return false;}return true;
     });
@@ -608,7 +630,7 @@
     const beaches={};savedSpecimens.forEach(d=>{const b=specimenBeach(d);if(b)beaches[b]=(beaches[b]||0)+1;});const topBeach=Object.entries(beaches).sort((a,b)=>b[1]-a[1])[0];
     const colors={};savedSpecimens.forEach(d=>colors[d.accessionColor]=(colors[d.accessionColor]||0)+1);const topColor=Object.entries(colors).sort((a,b)=>b[1]-a[1])[0];
     const diagnostic=savedSpecimens.filter(d=>d.interpretation?.datingConfidence==='Diagnostic').length;const unresolved=savedSpecimens.filter(d=>d.interpretation?.datingConfidence==='Broad'||d.interpretation?.source==='Unresolved').length;
-    const pre=savedSpecimens.filter(d=>eraClass(d)==='pre1900').length,twenty=savedSpecimens.filter(d=>['1900-1949','1950plus'].includes(eraClass(d))).length;
+    const pre=savedSpecimens.filter(d=>eraClasses(d).has('pre1900')).length,twenty=savedSpecimens.filter(d=>eraClasses(d).has('1900-1949')||eraClasses(d).has('1950plus')).length;
     const cards=[
       ['Oldest probable',oldest?oldest.id:'No dated specimen',oldest?.interpretation?.period||'Add diagnostic clues'],
       ['Rarest color',rare?colorById(rare.accessionColor).name:'—',rare?`${rare.interpretation?.colorRarity||'—'} / 10 · ${rare.id}`:'—'],
